@@ -24,12 +24,6 @@ except Exception as e:
 
 
 def insert_into_hospital_basic_info(url, params, center_type):
-    response = requests.get(url, params=params)
-    xmlString = response.content
-    jsonString = json.dumps(xmltodict.parse(xmlString), indent=4)
-
-    data = json.loads(jsonString)['response']['body']['items']['item']
-
     for x in data:
         duty_addr = x.get('dutyAddr' , '')
         duty_emcls = x.get('dutyEmcls', '')
