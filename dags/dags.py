@@ -10,10 +10,10 @@ import requests
 
 # DAG 설정
 default_args = {
-    # 'owner': 'your_name',
     'start_date': datetime(2023, 8, 9),
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'timezone': 'Asia/Seoul',
+    'retry_delay': timedelta(minutes=5)
 }
 
 dag = DAG(
@@ -23,7 +23,7 @@ dag = DAG(
 )
 
 # API 호출
-def call_api(url, params):
+def call_api(url, params, **kwargs):
     url = 'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire'
     params = {'serviceKey': 'i2nQ5zrOUo6vBQs0nD+h14vmsQMPQuEvfvf+P5BfVQSgkWFMKabetmAYmLLk79BRx7eizGH3707qbtns1K7Z2g==', 'pageNo' : '1', 'numOfRows' : '9999' }
 
@@ -32,13 +32,12 @@ def call_api(url, params):
     jsonString = xmltodict.parse(xmlString)
     
     data = jsonString['response']['body']['items']['item']
-
+    kwargs['ti'].xcom_push(key='list_info_data', value=data)
     return data
 
 # 데이터 적재
 def load_data_to_rds(**kwargs):
-    data = kwargs['ti'].xcom_pull(task_ids='call_api_task')
-    print(data)
+    data = kwargs['ti'].xcom_pull(key='list_info_data')
     load_dotenv()
 
     DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
@@ -70,9 +69,9 @@ def load_data_to_rds(**kwargs):
         wgs_84_lon = x.get('wgs84Lon', '')
 
         query = f"INSERT INTO HOSPITAL_BASIC_INFO (hpid, phpid, duty_emcls, duty_emcls_name, duty_addr, duty_name, duty_tel1, duty_tel3, wgs_84_lon, wgs_84_lat, center_type)" \
-                f" VALUES ('{hpid}', '{phpid}', '{duty_emcls}', '{duty_emcls_name}', '{duty_addr}', '{duty_name}', '{duty_tel1}', '{duty_tel3}', '{wgs_84_lon}', '{wgs_84_lat}', '{center_type}')"
+                f" VALUES ('{hpid}', '{phpid}', '{duty_emcls}', '{duty_emcls_name}', '{duty_addr}', '{duty_name}', '{duty_tel1}', '{duty_tel3}', '{wgs_84_lon}', '{wgs_84_lat}', 1)"
         print(query)
-    #cursor.execute(query)
+        cursor.execute(query)
     conn.commit()  
 
 # 각 API 호출 태스크 생성
