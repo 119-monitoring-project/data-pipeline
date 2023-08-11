@@ -22,28 +22,28 @@ dag = DAG(
     schedule_interval=timedelta(days=1),
 )
 
-url = 'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire'
-params = {'serviceKey' : 'MU0Pzy/M1ga8fgWxnhtbO7aKRlUbCzqBOwwjRtA2IgMD7qlMEhi7d7ojiOwcTuHVOXFRAJxJ0TVm77XzjAFtLw==', 'pageNo' : '1', 'numOfRows' : '9999' }
-
-
 # API 호출
 def call_api(url, params):
-    response = requests.get(url, params=params)
-    xmlString = response.content
-    jsonString = json.dumps(xmltodict.parse(xmlString), indent=4)
+    url = 'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire'
+    params = {'serviceKey': 'i2nQ5zrOUo6vBQs0nD+h14vmsQMPQuEvfvf+P5BfVQSgkWFMKabetmAYmLLk79BRx7eizGH3707qbtns1K7Z2g==', 'pageNo' : '1', 'numOfRows' : '9999' }
 
-    data = json.loads(jsonString)['response']['body']['items']['item']
+    response = requests.get(url, params=params)
+    xmlString = response.text
+    jsonString = xmltodict.parse(xmlString)
+    
+    data = jsonString['response']['body']['items']['item']
 
     return data
 
 # 데이터 적재
 def load_data_to_rds(**kwargs):
     data = kwargs['ti'].xcom_pull(task_ids='call_api_task')
+    print(data)
     load_dotenv()
 
     DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
     host = os.getenv('HOST')
-    port = os.getenv('PORT')
+    # port = os.getenv('PORT')
     database = os.getenv('DATABASE')
     username = os.getenv('USERNAME')
     password = os.getenv('PASSWORD')
@@ -76,13 +76,13 @@ def load_data_to_rds(**kwargs):
     conn.commit()  
 
 # 각 API 호출 태스크 생성
-api_urls = [
+list_api_urls = [
     'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire',
     'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getStrmListInfoInqire'
 ]
 
 api_tasks = []
-for i, api_url in enumerate(api_urls):
+for i, api_url in enumerate(list_api_urls):
     api_task = PythonOperator(
         task_id=f'call_api_task_{i}',
         python_callable=call_api,
@@ -103,3 +103,4 @@ load_to_rds_task = PythonOperator(
 # 의존성 설정
 for api_task in api_tasks:
     api_task >> load_to_rds_task
+    

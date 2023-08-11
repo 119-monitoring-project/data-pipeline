@@ -1,1 +1,4 @@
 xmltodict
+PyMySQL
+requests
+python-dotenv
