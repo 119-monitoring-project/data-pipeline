@@ -1,12 +1,16 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
+from airflow.models import Variable
 from dotenv import load_dotenv
 import os
 import json
 import xmltodict
 import pymysql
 import requests
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 # DAG 설정
 default_args = {
@@ -23,14 +27,14 @@ dag = DAG(
 )
 
 # API 호출
-def call_api(url, params, **kwargs):
-    url = 'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire'
-    params = {'serviceKey': 'i2nQ5zrOUo6vBQs0nD+h14vmsQMPQuEvfvf+P5BfVQSgkWFMKabetmAYmLLk79BRx7eizGH3707qbtns1K7Z2g==', 'pageNo' : '1', 'numOfRows' : '9999' }
+def call_api(url, **kwargs):
+    load_dotenv()
+    servicekey = Variable.get('SERVICEKEY')
+    params = {'serviceKey': servicekey, 'pageNo' : '1', 'numOfRows' : '9999' }
 
     response = requests.get(url, params=params)
     xmlString = response.text
     jsonString = xmltodict.parse(xmlString)
-    
     data = jsonString['response']['body']['items']['item']
     kwargs['ti'].xcom_push(key='list_info_data', value=data)
     return data
@@ -38,14 +42,11 @@ def call_api(url, params, **kwargs):
 # 데이터 적재
 def load_data_to_rds(**kwargs):
     data = kwargs['ti'].xcom_pull(key='list_info_data')
-    load_dotenv()
-
-    DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-    host = os.getenv('HOST')
-    # port = os.getenv('PORT')
-    database = os.getenv('DATABASE')
-    username = os.getenv('USERNAME')
-    password = os.getenv('PASSWORD')
+    
+    host = Variable.get('HOST')
+    database = Variable.get('DATABASE')
+    username = Variable.get('USERNAME')
+    password = Variable.get('PASSWORD')
 
     try:
         # DB Connection 생성
@@ -100,6 +101,4 @@ load_to_rds_task = PythonOperator(
 )
 
 # 의존성 설정
-for api_task in api_tasks:
-    api_task >> load_to_rds_task
-    
+api_tasks >> load_to_rds_task
