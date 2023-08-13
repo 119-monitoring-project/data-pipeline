@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.dummy_operator import DummyOperator
 from datetime import datetime, timedelta
 from airflow.models import Variable
 from dotenv import load_dotenv
@@ -75,6 +76,11 @@ def load_data_to_rds(**kwargs):
         cursor.execute(query)
     conn.commit()  
 
+start_task = DummyOperator(
+    task_id = 'start_task',
+    dag=dag
+)
+
 # 각 API 호출 태스크 생성
 list_api_urls = [
     'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire',
@@ -101,4 +107,4 @@ load_to_rds_task = PythonOperator(
 )
 
 # 의존성 설정
-api_tasks >> load_to_rds_task
+start_task >> api_tasks >> load_to_rds_task
