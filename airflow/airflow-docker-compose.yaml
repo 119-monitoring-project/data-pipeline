@@ -30,7 +30,7 @@ x-airflow-common:
     - ./plugins:/opt/airflow/plugins
 
   env_file:
-    - ./.env
+    - ../.env
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   mem_limit: 6g
   depends_on:
