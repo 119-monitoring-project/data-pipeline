@@ -26,31 +26,29 @@ dag = DAG(
     schedule_interval=timedelta(days=1),
 )
 
-# API 호출
-def call_api(url, **kwargs):
+# API 호출하여 데이터 추출
+def call_api(op_orgs, **kwargs):
+    url = op_orgs[0]
+    center_type = op_orgs[1]
+    current_task_name = kwargs['task_instance'].task_id
+    
     servicekey = Variable.get('SERVICEKEY')
     params = {'serviceKey': servicekey, 'pageNo' : '1', 'numOfRows' : '9999' }
     
     response = requests.get(url, params=params)
     xmlString = response.text
     jsonString = xmltodict.parse(xmlString)
-        
+    
     data = jsonString['response']['body']['items']['item']
     
-    if kwargs['ti'].task_id == 'call_basic_info_0':
-        [duty.update({'center_type': 0}) for duty in data]
-        kwargs['ti'].xcom_push(key='list_info_data_0', value=data)
-    elif kwargs['ti'].task_id == 'call_basic_info_1':
-        [duty.update({'center_type': 1}) for duty in data]
-        kwargs['ti'].xcom_push(key='list_info_data_1', value=data)
+    # center_type 추가 
+    for duty in data:
+        duty.update({'center_type': center_type})
+    
+    kwargs['ti'].xcom_push(key=current_task_name, value=data)
     
 # 데이터 적재
-def load_basic_data_to_rds(**kwargs):
-    data_0 = kwargs['ti'].xcom_pull(key='list_info_data_0')
-    data_1 = kwargs['ti'].xcom_pull(key='list_info_data_1')
-        
-    data = data_0 + data_1
-    
+def load_basic_data_to_rds(**kwargs):    
     host = Variable.get('HOST')
     database = Variable.get('DATABASE')
     username = Variable.get('USERNAME')
@@ -63,6 +61,10 @@ def load_basic_data_to_rds(**kwargs):
 
     except Exception as e:
         print(e)
+    
+    egyt_data = kwargs['ti'].xcom_pull(key='call_basic_Egyt_data')
+    strm_data = kwargs['ti'].xcom_pull(key='call_basic_Strm_data')
+    data = egyt_data + strm_data
     
     # 병뭔 목록 저장
     hpids = []
@@ -199,56 +201,57 @@ def load_detail_data_to_rds(url, **kwargs):
         
     conn.commit() # 1차로 적재 완료된 데이터에 대해 commit 진행
 
-# 각 API 호출 태스크 생성
-basic_list_api_urls = [
-    'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytListInfoInqire', # 응급의료기관 기본정보
-    'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getStrmListInfoInqire' # 외상센터 기본정보
-    ]
-
-detail_api_urls = [
-    'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getEgytBassInfoInqire', # 응급의료기관 상세정보
-    'http://apis.data.go.kr/B552657/ErmctInfoInqireService/getStrmBassInfoInqire' # 외상센터 상세정보
-    ]
-
 start_task = DummyOperator(
-    task_id = 'start_task',
+    task_id = 'start_data_extraction',
     dag=dag
 )
 
-basic_api_tasks = []
-for i, api_url in enumerate(basic_list_api_urls):
-    api_task = PythonOperator(
-        task_id=f'call_basic_info_{i}',
-        python_callable=call_api,
-        op_args=[api_url],
-        provide_context=True,
-        dag=dag,
-    )
-    basic_api_tasks.append(api_task)
+op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
+call_basic_info_Egyt = PythonOperator(
+    task_id = 'call_basic_Egyt_data',
+    python_callable=call_api,
+    op_args=[op_orgs],
+    provide_context=True,
+    dag=dag    
+)
+
+op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
+call_basic_info_Strm = PythonOperator(
+    task_id = 'call_basic_Strm_data',
+    python_callable=call_api,
+    op_args=[op_orgs],
+    provide_context=True,
+    dag=dag
+)
 
 # 기본정보 데이터 적재 태스크 
 load_basic_data_to_rds = PythonOperator(
-    task_id='load_basic_info_task',
+    task_id='load_basic_data',
     python_callable=load_basic_data_to_rds,
     provide_context=True,
     dag=dag,
 )
 
-detail_api_tasks = []
-for i, api_url in enumerate(detail_api_urls):
-    api_task= PythonOperator(
-        task_id=f'load_detail_data_to_rds_{i}',
-        python_callable=load_detail_data_to_rds,
-        op_args=[api_url],
-        provide_context=True,
-        dag=dag
-    )
-    detail_api_tasks.append(api_task)
-    
+load_detail_info_Egyt = PythonOperator(
+    task_id = 'load_detail_info_Egyt',
+    python_callable=load_detail_data_to_rds,
+    op_args=[Variable.get('DETAIL_EGYT_URL')],
+    provide_context=True,
+    dag=dag
+)
+
+load_detail_info_Strm = PythonOperator(
+    task_id = 'load_detail_info_Strm',
+    python_callable=load_detail_data_to_rds,
+    op_args=[Variable.get('DETAIL_STRM_URL')],
+    provide_context=True,
+    dag=dag
+)
+
 end_task = DummyOperator(
-    task_id = 'end_task',
+    task_id = 'finish_data_to_rds',
     dag=dag
 )
 
 # 의존성 설정
-start_task >> basic_api_tasks >> load_basic_data_to_rds >> detail_api_tasks >> end_task
+start_task >> [call_basic_info_Egyt, call_basic_info_Strm] >> load_basic_data_to_rds >> [load_detail_info_Egyt, load_detail_info_Strm] >> end_task
