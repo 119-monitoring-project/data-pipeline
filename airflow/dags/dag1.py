@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.empty import EmptyOperator
+from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
 from datetime import datetime, timedelta
 from airflow.models import Variable
 import os
@@ -156,7 +157,7 @@ def insert_hpid_info(data, cursor):
     hpnicuyn = data.get('hpnicuyn', '')
     hpopyn = data.get('hpopyn', '')
 
-    query = f"INSERT IGNORE INTO HOSPITAL_TEST.HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8, mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn) VALUES " \
+    query = f"INSERT IGNORE INTO HOSPITAL.HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8, mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn) VALUES " \
             "('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')" \
         .format(hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano,
                 duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c,
@@ -201,7 +202,7 @@ def load_detail_data_to_rds(url, **kwargs):
         
     conn.commit() # 1차로 적재 완료된 데이터에 대해 commit 진행
 
-start_task = DummyOperator(
+start_task = EmptyOperator(
     task_id = 'start_data_extraction',
     dag=dag
 )
@@ -215,7 +216,7 @@ call_basic_info_Egyt = PythonOperator(
     dag=dag    
 )
 
-op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
+op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 cent r_type == 1
 call_basic_info_Strm = PythonOperator(
     task_id = 'call_basic_Strm_data',
     python_callable=call_api,
@@ -248,10 +249,36 @@ load_detail_info_Strm = PythonOperator(
     dag=dag
 )
 
-end_task = DummyOperator(
+end_task = EmptyOperator(
     task_id = 'finish_data_to_rds',
     dag=dag
 )
 
+
+mysql_to_s3_basic = SqlToS3Operator(
+    task_id='rds_to_s3_basic',
+    query='SELECT * FROM HOSPITAL_BASIC_INFO',
+    s3_bucket='de-5-1',
+    s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
+    sql_conn_id='rds_conn_id',
+    aws_conn_id='aws_conn_id',
+    replace=True,
+    dag=dag,
+)
+
+mysql_to_s3_detail = SqlToS3Operator(
+    task_id='rds_to_s3_detail',
+    query='SELECT * FROM HOSPITAL_DETAIL_INFO',
+    s3_bucket='de-5-1',
+    s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
+    sql_conn_id='rds_conn_id',
+    aws_conn_id='aws_conn_id',
+    replace=True,
+    dag=dag,
+)
+
 # 의존성 설정
 start_task >> [call_basic_info_Egyt, call_basic_info_Strm] >> load_basic_data_to_rds >> [load_detail_info_Egyt, load_detail_info_Strm] >> end_task
+end_task >> [mysql_to_s3_basic, mysql_to_s3_detail]
+
+# 오늘 일자만 업로드하고, 이전 날짜는 지우기
