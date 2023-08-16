@@ -4,14 +4,10 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
 from datetime import datetime, timedelta
 from airflow.models import Variable
-import os
-import json
 import xmltodict
 import pymysql
 import requests
-import logging
 
-logging.basicConfig(level=logging.DEBUG)
 
 # DAG 설정
 default_args = {
@@ -49,7 +45,9 @@ def call_api(op_orgs, **kwargs):
     kwargs['ti'].xcom_push(key=current_task_name, value=data)
     
 # 데이터 적재
-def load_basic_data_to_rds(**kwargs):    
+def load_basic_data_to_rds(**kwargs):
+    execution_date = kwargs['execution_date'].strftime('%Y-%m-%d %H:%M:%S')
+    
     host = Variable.get('HOST')
     database = Variable.get('DATABASE')
     username = Variable.get('USERNAME')
@@ -83,9 +81,10 @@ def load_basic_data_to_rds(**kwargs):
         wgs_84_lat = x.get('wgs84Lat', '')
         wgs_84_lon = x.get('wgs84Lon', '')
         center_type = x.get('center_type', '')
+        dt = execution_date
 
-        query = f"INSERT IGNORE INTO HOSPITAL_BASIC_INFO (hpid, phpid, duty_emcls, duty_emcls_name, duty_addr, duty_name, duty_tel1, duty_tel3, wgs_84_lon, wgs_84_lat, center_type)" \
-                f" VALUES ('{hpid}', '{phpid}', '{duty_emcls}', '{duty_emcls_name}', '{duty_addr}', '{duty_name}', '{duty_tel1}', '{duty_tel3}', '{wgs_84_lon}', '{wgs_84_lat}', '{center_type}')"
+        query = f"INSERT IGNORE INTO HOSPITAL_BASIC_INFO (hpid, phpid, duty_emcls, duty_emcls_name, duty_addr, duty_name, duty_tel1, duty_tel3, wgs_84_lon, wgs_84_lat, center_type, dt)" \
+                f" VALUES ('{hpid}', '{phpid}', '{duty_emcls}', '{duty_emcls_name}', '{duty_addr}', '{duty_name}', '{duty_tel1}', '{duty_tel3}', '{wgs_84_lon}', '{wgs_84_lat}', '{center_type}', '{dt}')"
         print(query)
 
         hpids.append(hpid) # 리스트에 hpid 저장
@@ -95,7 +94,7 @@ def load_basic_data_to_rds(**kwargs):
     
     kwargs['ti'].xcom_push(key='load_hpids', value=hpids)
 
-def insert_hpid_info(data, cursor):
+def insert_hpid_info(data, cursor, execution_date):
     hpid = data.get('hpid', '')
     post_cdn1 = data.get('postCdn1', '')
     post_cdn2 = data.get('postCdn2', '')
@@ -156,20 +155,22 @@ def insert_hpid_info(data, cursor):
     hpicuyn = data.get('hpicuyn', '')
     hpnicuyn = data.get('hpnicuyn', '')
     hpopyn = data.get('hpopyn', '')
+    dt = execution_date
 
-    query = f"INSERT IGNORE INTO HOSPITAL.HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8, mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn) VALUES " \
-            "('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')" \
+    query = f"INSERT IGNORE INTO HOSPITAL.HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8, mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn, dt) VALUES " \
+            "('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')" \
         .format(hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano,
                 duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c,
                 duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s,
                 duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25,
                 mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8,
                 mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn,
-                hpicuyn, hpnicuyn, hpopyn)
+                hpicuyn, hpnicuyn, hpopyn, dt)
 
     cursor.execute(query)
 
 def load_detail_data_to_rds(url, **kwargs):
+    execution_date = kwargs['execution_date'].strftime('%Y-%m-%d %H:%M:%S')
     hpids = kwargs['ti'].xcom_pull(key='load_hpids') # rds에 적재된 의료기관의 hpid
     
     host = Variable.get('HOST')
@@ -195,7 +196,7 @@ def load_detail_data_to_rds(url, **kwargs):
         jsonString = xmltodict.parse(xmlString)
         try:
             data = jsonString['response']['body']['items']['item']
-            insert_hpid_info(data,cursor)
+            insert_hpid_info(data, cursor, execution_date)
         except:
             retry_hpids.append(hpid)
             continue
