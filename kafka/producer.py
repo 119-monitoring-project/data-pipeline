@@ -69,7 +69,7 @@ if __name__ == '__main__':
     producer = get_producer(BROKERS)
     while True:
         text = ''
-        for x in data:
+        for i, x in enumerate(data):
             params = {'serviceKey': api_key, 'pageNo': '1', 'numOfRows': '100', 'STAGE1': x[0]}
 
             response = requests.get(url, params=params)
@@ -79,12 +79,14 @@ if __name__ == '__main__':
                 json_data = json.loads(jsonString)['response']['body']['items']
                 if json_data is not None:
                     for item in json_data['item']:
-                        text += str(item) + ' '
+                        text += str(item) + '\n'
             except:
+                print('error', x[0])
+                break
                 pass
 
         # print(deep_getsizeof(text.encode('utf-8')))
-
+        text = text.replace("'", '"')
         producer.send(
             topic='emergency_data',
             value=text.encode('utf-8')
