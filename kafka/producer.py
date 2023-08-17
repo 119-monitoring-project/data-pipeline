@@ -1,6 +1,7 @@
 from kafka.producer import KafkaProducer
 from dotenv import load_dotenv
 from datetime import datetime
+import sys
 import os
 import xmltodict
 import json
@@ -24,6 +25,24 @@ try:
 
 except Exception as e:
     print(e)
+
+
+def deep_getsizeof(obj, seen=None) -> int:
+    """재귀적으로 객체의 메모리 사용량을 계산하는 함수"""
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # 이미 본 객체는 저장
+    seen.add(obj_id)
+    size = sys.getsizeof(obj)
+    if isinstance(obj, dict):
+        size += sum(deep_getsizeof(v, seen) for v in obj.values())
+        size += sum(deep_getsizeof(k, seen) for k in obj.keys())
+    elif hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum(deep_getsizeof(i, seen) for i in obj)
+    return size
 
 
 def get_producer(bootstrap_servers: tuple):
@@ -56,16 +75,19 @@ if __name__ == '__main__':
             response = requests.get(url, params=params)
             xmlString = response.content
             jsonString = json.dumps(xmltodict.parse(xmlString), indent=4)
-            json_data = json.loads(jsonString)['response']['body']['items']
-            if json_data is not None:
-                for item in json_data['item']:
-                    text += str(item) + ' '
-        if temp_text != text:
-            print(f'{datetime.now()} : 바뀜')
-        temp_text = text
+            try:
+                json_data = json.loads(jsonString)['response']['body']['items']
+                if json_data is not None:
+                    for item in json_data['item']:
+                        text += str(item) + ' '
+            except:
+                pass
 
-        # producer.send(
-        #     topic='emergency_data',
-        #     value=text.encode('utf-8')
-        # )
-        # producer.flush()
+        # print(deep_getsizeof(text.encode('utf-8')))
+
+        producer.send(
+            topic='emergency_data',
+            value=text.encode('utf-8')
+        )
+
+        producer.flush()
