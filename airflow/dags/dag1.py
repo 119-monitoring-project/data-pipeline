@@ -238,7 +238,7 @@ def check_previous_task_result(**kwargs):
     if previous_task_result == False:
         return 'reload_detail_data_to_rds'  # 결과가 False면 다음 태스크로 이동
     else:
-        return 'end_task_rds'  # 결과가 True면 다른 태스크로 이동
+        return 'finish_data_to_rds'  # 결과가 True면 다른 태스크로 이동
 
 def reload_detail_data_to_rds(**kwargs):
     execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
@@ -350,7 +350,6 @@ check_task_rds = BranchPythonOperator(
     provide_context=True,
     python_callable=check_previous_task_result,
     dag=dag,
-    
 )
 
 reload_detail_info = PythonOperator(
@@ -411,7 +410,7 @@ delete_ex_info_detail = MySqlOperator(
 # 의존성 설정
 start_task >> call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
 start_task >> call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
-[load_detail_info_Strm, load_detail_info_Egyt] >> count_task_rds >> check_task_rds
-check_task_rds >> [reload_detail_info, end_task_rds]
+[load_detail_info_Strm, load_detail_info_Egyt] >> count_task_rds
+count_task_rds >> check_task_rds >> [reload_detail_info, end_task_rds]
 end_task_rds >> [mysql_to_s3_basic, mysql_to_s3_detail] >> end_task_s3
 end_task_s3 >> [delete_ex_info_basic, delete_ex_info_detail]
