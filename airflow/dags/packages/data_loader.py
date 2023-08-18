@@ -61,16 +61,16 @@ def insert_hpid_info(data, cursor, execution_date):
     duty_time_8s = data.get('dutyTime8c', '')
     mkioskty25 = data.get('MKioskTy25', '')
     mkioskty1 = data.get('MKioskTy1', '')
-    mkisokty2 = data.get('MKioskTy2', '')
-    mkisokty3 = data.get('MKioskTy3', '')
-    mkisokty4 = data.get('MKioskTy4', '')
-    mkisokty5 = data.get('MKioskTy5', '')
-    mkisokty6 = data.get('MKioskTy6', '')
-    mkisokty7 = data.get('MKioskTy7', '')
-    mkisokty8 = data.get('MKioskTy8', '')
-    mkisokty9 = data.get('MKioskTy9', '')
-    mkisokty10 = data.get('MKioskTy10', '')
-    mkisokty11 = data.get('MKioskTy11', '')
+    mkioskty2 = data.get('MKioskTy2', '')
+    mkioskty3 = data.get('MKioskTy3', '')
+    mkioskty4 = data.get('MKioskTy4', '')
+    mkioskty5 = data.get('MKioskTy5', '')
+    mkioskty6 = data.get('MKioskTy6', '')
+    mkioskty7 = data.get('MKioskTy7', '')
+    mkioskty8 = data.get('MKioskTy8', '')
+    mkioskty9 = data.get('MKioskTy9', '')
+    mkioskty10 = data.get('MKioskTy10', '')
+    mkioskty11 = data.get('MKioskTy11', '')
     dgid_id_name = data.get('dgidIdName', '')
     hpbdn = data.get('hpbdn', '')
     hpccuyn = data.get('hpccuyn', '')
@@ -82,14 +82,14 @@ def insert_hpid_info(data, cursor, execution_date):
     hpopyn = data.get('hpopyn', '')
     dt = execution_date
 
-    query = f"INSERT IGNORE INTO HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8, mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn, dt) VALUES " \
+    query = f"INSERT IGNORE INTO HOSPITAL_DETAIL_INFO (hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano, duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c, duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s, duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25, mkioskty1, mkioskty2, mkioskty3, mkioskty4, mkioskty5, mkioskty6, mkioskty7, mkioskty8, mkioskty9, mkioskty10, mkioskty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn, hpicuyn, hpnicuyn, hpopyn, dt) VALUES " \
             "('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')" \
         .format(hpid, post_cdn1, post_cdn2, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, hvgc, duty_hayn, duty_hano,
                 duty_inf, duty_map_img, duty_eryn, duty_time_1c, duty_time_2c, duty_time_3c, duty_time_4c,
                 duty_time_5c, duty_time_6c, duty_time_7c, duty_time_8c, duty_time_1s, duty_time_2s,
                 duty_time_3s, duty_time_4s, duty_time_5s, duty_time_6s, duty_time_7s, duty_time_8s, mkioskty25,
-                mkioskty1, mkisokty2, mkisokty3, mkisokty4, mkisokty5, mkisokty6, mkisokty7, mkisokty8,
-                mkisokty9, mkisokty10, mkisokty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn,
+                mkioskty1, mkioskty2, mkioskty3, mkioskty4, mkioskty5, mkioskty6, mkioskty7, mkioskty8,
+                mkioskty9, mkioskty10, mkioskty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn,
                 hpicuyn, hpnicuyn, hpopyn, dt)
 
     cursor.execute(query)

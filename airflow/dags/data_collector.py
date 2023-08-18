@@ -11,20 +11,6 @@ import requests
 from packages.data_loader import insert_hpid_info, connect_db
 from packages.data_loader import DataLoader
 
-# DAG 설정
-default_args = {
-    'start_date': datetime(2023, 8, 9),
-    'timezone': 'Asia/Seoul',
-    # 'retries': 1,
-    # 'retry_delay': timedelta(minutes=5)
-}
-
-dag = DAG(
-    'emergency_room_info',
-    default_args=default_args,
-    schedule_interval=timedelta(days=1),
-)
-
 def count_data_in_rds(**kwargs):
     # execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
     
@@ -82,131 +68,141 @@ def reload_detail_data_to_rds(**kwargs):
         
     conn.commit() 
 
-start_task = EmptyOperator(
-    task_id='start_data_extraction',
-    dag=dag
-)
 
-op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
-call_basic_info_Egyt = PythonOperator(
-    task_id='call_basic_Egyt_data',
-    python_callable=DataLoader.call_api,
-    op_args=[op_orgs],
-    provide_context=True,
-    dag=dag    
-)
+# DAG 설정
+default_args = {
+    'start_date': datetime(2023, 8, 9),
+    'timezone': 'Asia/Seoul',
+    # 'retries': 1,
+    # 'retry_delay': timedelta(minutes=5)
+}
 
-op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
-call_basic_info_Strm = PythonOperator(
-    task_id='call_basic_Strm_data',
-    python_callable=DataLoader.call_api,
-    op_args=[op_orgs],
-    provide_context=True,
-    dag=dag
-)
+with DAG(
+    'emergency_room_info',
+    default_args=default_args,
+    schedule_interval=timedelta(days=1),
+) as dag:
+
+    start_task = EmptyOperator(
+        task_id='start_data_extraction'
+    )
+
+    op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
+    call_basic_info_Egyt = PythonOperator(
+        task_id='call_basic_Egyt_data',
+        python_callable=DataLoader.call_api,
+        op_args=[op_orgs],
+        provide_context=True
+    )
+
+    op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
+    call_basic_info_Strm = PythonOperator(
+        task_id='call_basic_Strm_data',
+        python_callable=DataLoader.call_api,
+        op_args=[op_orgs],
+        provide_context=True
+    )
 
 # 기본정보 데이터 적재 태스크 
-load_basic_data_to_rds_egyt = PythonOperator(
-    task_id='load_basic_info_egyt',
-    python_callable=DataLoader.load_basic_data_to_rds,
-    op_kwargs={'task_id':'call_basic_Egyt_data'},
-    provide_context=True,
-    dag=dag
-)
+    load_basic_data_to_rds_egyt = PythonOperator(
+        task_id='load_basic_info_egyt',
+        python_callable=DataLoader.load_basic_data_to_rds,
+        op_kwargs={'task_id':'call_basic_Egyt_data'},
+        provide_context=True
+    )
 
-# 기본정보 데이터 적재 태스크 
-load_basic_data_to_rds_strm = PythonOperator(
-    task_id='load_basic_info_strm',
-    python_callable=DataLoader.load_basic_data_to_rds,
-    op_kwargs={'task_id':'call_basic_Strm_data'},
-    provide_context=True,
-    dag=dag
-)
+    # 기본정보 데이터 적재 태스크 
+    load_basic_data_to_rds_strm = PythonOperator(
+        task_id='load_basic_info_strm',
+        python_callable=DataLoader.load_basic_data_to_rds,
+        op_kwargs={'task_id':'call_basic_Strm_data'},
+        provide_context=True
+    )
 
-load_detail_info_Egyt = PythonOperator(
-    task_id='load_detail_info_Egyt',
-    python_callable=DataLoader.load_detail_data_to_rds,
-    op_args=[Variable.get('DETAIL_EGYT_URL')],
-    provide_context=True,
-    dag=dag
-)
+    load_detail_info_Egyt = PythonOperator(
+        task_id='load_detail_info_Egyt',
+        python_callable=DataLoader.load_detail_data_to_rds,
+        op_args=[Variable.get('DETAIL_EGYT_URL')],
+        provide_context=True,
+        dag=dag
+    )
 
-load_detail_info_Strm = PythonOperator(
-    task_id='load_detail_info_Strm',
-    python_callable=DataLoader.load_detail_data_to_rds,
-    op_args=[Variable.get('DETAIL_STRM_URL')],
-    provide_context=True,
-    dag=dag
-)
+    load_detail_info_Strm = PythonOperator(
+        task_id='load_detail_info_Strm',
+        python_callable=DataLoader.load_detail_data_to_rds,
+        op_args=[Variable.get('DETAIL_STRM_URL')],
+        provide_context=True,
+        dag=dag
+    )
 
-count_task_rds = PythonOperator(
-    task_id='count_data_in_rds',
-    python_callable=count_data_in_rds,
-    provide_context=True,
-    dag=dag
-)
+    count_task_rds = PythonOperator(
+        task_id='count_data_in_rds',
+        python_callable=count_data_in_rds,
+        provide_context=True,
+        dag=dag
+    )
 
-check_task_rds = BranchPythonOperator(
-    task_id='check_task_rds',
-    provide_context=True,
-    python_callable=check_previous_task_result,
-    dag=dag,
-)
+    check_task_rds = BranchPythonOperator(
+        task_id='check_task_rds',
+        provide_context=True,
+        python_callable=check_previous_task_result,
+        dag=dag,
+    )
 
-reload_detail_info = PythonOperator(
-    task_id='reload_detail_data_to_rds',
-    python_callable=reload_detail_data_to_rds,
-    provide_context=True,
-    dag=dag
-)
+    reload_detail_info = PythonOperator(
+        task_id='reload_detail_data_to_rds',
+        python_callable=reload_detail_data_to_rds,
+        provide_context=True,
+        dag=dag
+    )
 
-end_task_rds = EmptyOperator(
-    task_id='finish_data_to_rds',
-    dag=dag
-)
+    end_task_rds = EmptyOperator(
+        task_id='finish_data_to_rds',
+        dag=dag
+    )
 
-mysql_to_s3_basic = SqlToS3Operator(
-    task_id='rds_to_s3_basic',
-    query='SELECT * FROM HOSPITAL_BASIC_INFO',
-    s3_bucket='de-5-1',
-    s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
-    sql_conn_id='rds_conn_id',
-    aws_conn_id='aws_conn_id',
-    replace=True,
-    dag=dag,
-)
+    mysql_to_s3_basic = SqlToS3Operator(
+        task_id='rds_to_s3_basic',
+        query='SELECT * FROM HOSPITAL_BASIC_INFO',
+        s3_bucket='de-5-1',
+        s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
+        sql_conn_id='rds_conn_id',
+        aws_conn_id='aws_conn_id',
+        replace=True,
+        dag=dag,
+    )
 
-mysql_to_s3_detail = SqlToS3Operator(
-    task_id='rds_to_s3_detail',
-    query='SELECT * FROM HOSPITAL_DETAIL_INFO',
-    s3_bucket='de-5-1',
-    s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
-    sql_conn_id='rds_conn_id',
-    aws_conn_id='aws_conn_id',
-    replace=True,
-    dag=dag,
-)
+    mysql_to_s3_detail = SqlToS3Operator(
+        task_id='rds_to_s3_detail',
+        query='SELECT * FROM HOSPITAL_DETAIL_INFO',
+        s3_bucket='de-5-1',
+        s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
+        sql_conn_id='rds_conn_id',
+        aws_conn_id='aws_conn_id',
+        replace=True,
+        dag=dag,
+    )
 
-end_task_s3 = EmptyOperator(
-    task_id='finish_data_to_s3',
-    dag=dag
-)
+    end_task_s3 = EmptyOperator(
+        task_id='finish_data_to_s3',
+        dag=dag
+    )
 
-delete_ex_info_basic = MySqlOperator(
-    task_id='delete_basic_ex_info',
-    sql='DELETE FROM HOSPITAL_BASIC_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
-    mysql_conn_id='rds_conn_id',
-    autocommit=True,
-    dag=dag,
-)
+    delete_ex_info_basic = MySqlOperator(
+        task_id='delete_basic_ex_info',
+        sql='DELETE FROM HOSPITAL_BASIC_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
+        mysql_conn_id='rds_conn_id',
+        autocommit=True,
+        dag=dag,
+    )
 
-delete_ex_info_detail = MySqlOperator(
-    task_id='delete_detail_ex_info',
-    sql='DELETE FROM HOSPITAL_DETAIL_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
-    mysql_conn_id='rds_conn_id',
-    autocommit=True,
-    dag=dag,
-)
+    delete_ex_info_detail = MySqlOperator(
+        task_id='delete_detail_ex_info',
+        sql='DELETE FROM HOSPITAL_DETAIL_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
+        mysql_conn_id='rds_conn_id',
+        autocommit=True,
+        dag=dag,
+    )
 
 # 의존성 설정
 start_task >> call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
