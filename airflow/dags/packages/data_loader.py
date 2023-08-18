@@ -8,15 +8,14 @@ def connect_db():
     database = Variable.get('DATABASE')
     username = Variable.get('USERNAME')
     password = Variable.get('PASSWORD')
-    
     try:
         # DB Connection
         conn = pymysql.connect(host=host, user=username, passwd=password, db=database, use_unicode=True, charset='utf8')
         cursor = conn.cursor()
         return conn, cursor
 
-    except Exception as e:
-        print("Error connecting to the database:", e)
+    except:
+        print("Error connecting to the database:")
         return None, None
 
 def insert_hpid_info(data, cursor, execution_date):
@@ -94,44 +93,43 @@ def insert_hpid_info(data, cursor, execution_date):
 
     cursor.execute(query)
 
-
 class DataLoader:
     def __init__(self, url, center_type, service_key):
         self.url = url
         self.center_type = center_type
         self.service_key = service_key
-        
-    def call_api(op_orgs, **kwargs):
+
+    def call_api(self, op_orgs, **kwargs):
         url = op_orgs[0]
         center_type = op_orgs[1]
         current_task_name = kwargs['task_instance'].task_id
-        
+
         servicekey = Variable.get('SERVICEKEY')
         params = {'serviceKey': servicekey, 'pageNo' : '1', 'numOfRows' : '9999' }
-        
+
         response = requests.get(url, params=params)
         xmlString = response.text
         jsonString = xmltodict.parse(xmlString)
-        
+
         data = jsonString['response']['body']['items']['item']
-        
+
         # center_type 추가 
         for duty in data:
             duty.update({'center_type': center_type})
-        
+
         kwargs['ti'].xcom_push(key=current_task_name, value=data)
-        
+
     # 데이터 적재
-    def load_basic_data_to_rds(**kwargs):
+    def load_basic_data_to_rds(self, **kwargs):
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
-        
+
         conn, cursor = connect_db()
-        
+
         data = kwargs['ti'].xcom_pull(key=kwargs.get('task_id'))
-        
+
         # 병뭔 목록 저장
         hpids = []
-        
+
         # 데이터 적재
         for x in data:
             duty_addr = x.get('dutyAddr' , '')
@@ -152,32 +150,32 @@ class DataLoader:
             print(query)
 
             hpids.append(hpid) # 리스트에 hpid 저장
-            
+
             cursor.execute(query)
         conn.commit() 
         
         kwargs['ti'].xcom_push(key='load_hpids', value=hpids)
 
-    def load_detail_data_to_rds(url, **kwargs):
+    def load_detail_data_to_rds(self, **kwargs):
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
-        hpids = kwargs['ti'].xcom_pull(key='load_hpids') # rds에 적재된 의료기관의 hpid
-        
+        hpids = kwargs['ti'].xcom_pull(key='load_hpids')  # rds에 적재된 의료기관의 hpid
+
         servicekey = Variable.get('SERVICEKEY')
-        
+
         conn, cursor = connect_db()
-        
-        retry_hpids = [] # http 오류가 난 API는 재호출 시도 
+
+        retry_hpids = []  # http 오류가 난 API는 재호출 시도
         for hpid in list(hpids):
-            params = {'serviceKey': servicekey, 'HPID':hpid, 'pageNo' : '1', 'numOfRows' : '9999'}
-            
-            response = requests.get(url, params=params)
+            params = {'serviceKey': servicekey, 'HPID': hpid, 'pageNo': '1', 'numOfRows': '9999'}
+
+            response = requests.get(self.url, params=params)
             xmlString = response.text
             jsonString = xmltodict.parse(xmlString)
             try:
                 data = jsonString['response']['body']['items']['item']
                 insert_hpid_info(data, cursor, execution_date)
-            except:
+            except KeyError:
                 retry_hpids.append(hpid)
                 continue
-            
-        conn.commit() # 1차로 적재 완료된 데이터에 대해 commit 진행
+
+        conn.commit()  # 1차로 적재 완료된 데이터에 대해 commit 진행
