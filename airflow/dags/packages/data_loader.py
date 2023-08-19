@@ -99,7 +99,7 @@ class DataLoader:
         self.center_type = center_type
         self.service_key = service_key
 
-    def call_api(self, op_orgs, **kwargs):
+    def call_api(op_orgs, **kwargs):
         url = op_orgs[0]
         center_type = op_orgs[1]
         current_task_name = kwargs['task_instance'].task_id
@@ -120,7 +120,7 @@ class DataLoader:
         kwargs['ti'].xcom_push(key=current_task_name, value=data)
 
     # 데이터 적재
-    def load_basic_data_to_rds(self, **kwargs):
+    def load_basic_data_to_rds(**kwargs):
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
 
         conn, cursor = connect_db()
@@ -156,19 +156,19 @@ class DataLoader:
         
         kwargs['ti'].xcom_push(key='load_hpids', value=hpids)
 
-    def load_detail_data_to_rds(self, **kwargs):
+    def load_detail_data_to_rds(url, **kwargs):
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
         hpids = kwargs['ti'].xcom_pull(key='load_hpids')  # rds에 적재된 의료기관의 hpid
 
         servicekey = Variable.get('SERVICEKEY')
-
+        
         conn, cursor = connect_db()
 
         retry_hpids = []  # http 오류가 난 API는 재호출 시도
         for hpid in list(hpids):
             params = {'serviceKey': servicekey, 'HPID': hpid, 'pageNo': '1', 'numOfRows': '9999'}
 
-            response = requests.get(self.url, params=params)
+            response = requests.get(url, params=params)
             xmlString = response.text
             jsonString = xmltodict.parse(xmlString)
             try:

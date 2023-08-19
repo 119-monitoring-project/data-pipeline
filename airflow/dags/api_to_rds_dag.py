@@ -4,32 +4,14 @@ import xmltodict
 import requests
 from packages.data_loader import insert_hpid_info, connect_db
 from packages.data_loader import DataLoader
+from packages.count_data_in_rds import count_data_in_rds
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.empty import EmptyOperator
-from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
-from airflow.providers.mysql.operators.mysql import MySqlOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.models import Variable
-
-def count_data_in_rds(**kwargs):
-    # execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
-
-    _, cursor = connect_db()
-
-    query = ' \
-        SELECT HOSPITAL_BASIC_INFO.hpid, HOSPITAL_BASIC_INFO.center_type \
-        FROM HOSPITAL_BASIC_INFO \
-        LEFT JOIN HOSPITAL_DETAIL_INFO ON HOSPITAL_BASIC_INFO.hpid = HOSPITAL_DETAIL_INFO.hpid \
-        WHERE HOSPITAL_DETAIL_INFO.hpid IS NULL; \
-        '
-    cursor.execute(query)
-    retry_hpids = cursor.fetchall()
-
-    if not len(retry_hpids) == 0:
-        kwargs['ti'].xcom_push(key='count_result', value=False)
-        kwargs['ti'].xcom_push(key='retry_hpids', value=retry_hpids)
 
 def check_previous_task_result(**kwargs):
     previous_task_result = kwargs['ti'].xcom_pull(key='count_result')
@@ -47,6 +29,8 @@ def reload_detail_data_to_rds(**kwargs):
 
     conn, cursor = connect_db()
 
+### 태스크 그룹 만들기 
+##### 쓰레드 풀로 수정 필요
     for data in list(retry_hpids):
         hpid = data[0]
         center_type = data[1]
@@ -67,6 +51,7 @@ def reload_detail_data_to_rds(**kwargs):
         except:
             # 이 때는 진짜 슬랙 메세지 해야 함 ~
             print('슬메~')
+
     conn.commit() 
 
 
@@ -79,7 +64,7 @@ default_args = {
 }
 
 with DAG(
-    'emergency_room_info',
+    'api_to_rds_Dag',
     default_args=default_args,
     schedule_interval=timedelta(days=1),
 ) as dag:
@@ -133,7 +118,7 @@ with DAG(
         op_args=[Variable.get('DETAIL_STRM_URL')],
         provide_context=True
     )
-
+    
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
         python_callable=count_data_in_rds,
@@ -155,49 +140,8 @@ with DAG(
     end_task_rds = EmptyOperator(
         task_id='finish_data_to_rds'
     )
-
-    mysql_to_s3_basic = SqlToS3Operator(
-        task_id='rds_to_s3_basic',
-        query='SELECT * FROM HOSPITAL_BASIC_INFO',
-        s3_bucket='de-5-1',
-        s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
-        sql_conn_id='rds_conn_id',
-        aws_conn_id='aws_conn_id',
-        replace=True
-    )
-
-    mysql_to_s3_detail = SqlToS3Operator(
-        task_id='rds_to_s3_detail',
-        query='SELECT * FROM HOSPITAL_DETAIL_INFO',
-        s3_bucket='de-5-1',
-        s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
-        sql_conn_id='rds_conn_id',
-        aws_conn_id='aws_conn_id',
-        replace=True
-    )
-
-    end_task_s3 = EmptyOperator(
-        task_id='finish_data_to_s3'
-    )
-
-    delete_ex_info_basic = MySqlOperator(
-        task_id='delete_basic_ex_info',
-        sql='DELETE FROM HOSPITAL_BASIC_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
-        mysql_conn_id='rds_conn_id',
-        autocommit=True
-    )
-
-    delete_ex_info_detail = MySqlOperator(
-        task_id='delete_detail_ex_info',
-        sql='DELETE FROM HOSPITAL_DETAIL_INFO WHERE dt = "{{ (execution_date - macros.timedelta(days=1)).strftime("%Y-%m-%d") }}"',
-        mysql_conn_id='rds_conn_id',
-        autocommit=True
-    )
-
-# 의존성 설정
+    
 start_task >> call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
 start_task >> call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
 [load_detail_info_Strm, load_detail_info_Egyt] >> count_task_rds
 count_task_rds >> check_task_rds >> [reload_detail_info, end_task_rds]
-end_task_rds >> [mysql_to_s3_basic, mysql_to_s3_detail] >> end_task_s3
-end_task_s3 >> [delete_ex_info_basic, delete_ex_info_detail]
