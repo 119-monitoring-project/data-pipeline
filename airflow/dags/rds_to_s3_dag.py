@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from packages.count_data_in_rds import count_data_in_rds
+from plugins.preprocessing.data_counting import DataCounter
 
 from airflow import DAG
 from airflow.operators.empty import EmptyOperator
@@ -30,7 +30,7 @@ with DAG(
 
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
-        python_callable=count_data_in_rds,
+        python_callable=DataCounter().count_data_in_rds,
         provide_context=True
     )
     
@@ -42,7 +42,7 @@ with DAG(
 
     mysql_to_s3_basic = SqlToS3Operator(
         task_id='rds_to_s3_basic',
-        query='SELECT * FROM HOSPITAL_BASIC_INFO',
+        query='SELECT * FROM HOSPITAL_BASIC_INFO WHERE dt = CURRENT_DATE',
         s3_bucket='de-5-1',
         s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
         sql_conn_id='rds_conn_id',
@@ -52,7 +52,7 @@ with DAG(
 
     mysql_to_s3_detail = SqlToS3Operator(
         task_id='rds_to_s3_detail',
-        query='SELECT * FROM HOSPITAL_DETAIL_INFO',
+        query='SELECT * FROM HOSPITAL_DETAIL_INFO WHERE dt = CURRENT_DATE',
         s3_bucket='de-5-1',
         s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
         sql_conn_id='rds_conn_id',

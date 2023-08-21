@@ -2,9 +2,8 @@
 from datetime import datetime, timedelta
 import xmltodict
 import requests
-from packages.data_loader import insert_hpid_info, connect_db
-from packages.data_loader import DataLoader
-from packages.count_data_in_rds import count_data_in_rds
+from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
+from plugins.preprocessing.data_counting import DataCounter
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -121,7 +120,7 @@ with DAG(
     
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
-        python_callable=count_data_in_rds,
+        python_callable=DataCounter().count_data_in_rds,
         provide_context=True
     )
 

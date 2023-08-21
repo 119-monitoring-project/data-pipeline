@@ -2,8 +2,7 @@
 from datetime import datetime, timedelta
 import xmltodict
 import requests
-from packages.data_loader import insert_hpid_info, connect_db
-from packages.data_loader import DataLoader
+from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
