@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 import boto3
-from packages.data_loader import connect_db
+from plugins.preprocessing.db_connecting import connect_db
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
