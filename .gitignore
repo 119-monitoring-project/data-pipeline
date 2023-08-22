@@ -3,3 +3,5 @@ airflow/logs/*
 airflow/*.log
 airflow/dags/__pycache__/
 test.py
+.vscode
+airflow/dags/plugins/__pycache__/
