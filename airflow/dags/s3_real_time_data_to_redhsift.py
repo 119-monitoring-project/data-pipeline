@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 import boto3
-from plugins.preprocessing.db_connecting import connect_db
+from plugins.preprocessing import db_connecting
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -63,13 +63,13 @@ def download_file_from_s3(**context):
     latest_file = obj["Body"].read().decode('utf-8')
     context['ti'].xcom_push(key='latest_file', value=latest_file)
 
-
 def insert_data_to_redshift(**context):
     now = datetime.now()
     now += timedelta(hours=9)
     latest_file = context['ti'].xcom_pull(key='latest_file')
-    #cursor = get_redshift_connection()
-    query = "INSERT INTO real_time_data_to_redshift (hpid, phpid, hvidate, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, " \
+    cursor = get_redshift_connection()
+
+    query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvoc, hvcc, hvncc, hvccc, hvicc, " \
             "hvgc, hvdnm, hvctayn, hvmriayn, hvangioayn, hvventiayn, hvventisoayn, hvincuayn, hvcrrtayn, " \
             "hvecmoayn, hvoxyayn, hvhypoayn, hvamyn, hv1, hv2, hv3, hv4, hv5, hv6, hv7, hv8, hv9, hv10, hv11, " \
             "hv12, hv13, hv14, hv15, hv16, hv17, hv18, hv19, hv21, hv22, hv23, hv24, hv25, hv26, hv27, hv28, hv29, " \
@@ -97,13 +97,14 @@ def insert_data_to_redshift(**context):
             f"'{data.get('hvs14', '')}', '{data.get('hvs15', '')}', '{data.get('hvs16', '')}', '{data.get('hvs17', '')}', '{data.get('hvs18', '')}', '{data.get('hvs19', '')}', '{data.get('hvs20', '')}', '{data.get('hvs21', '')}', '{data.get('hvs22', '')}', '{data.get('hvs23', '')}', '{data.get('hvs24', '')}', '{data.get('hvs25', '')}', '{data.get('hvs26', '')}', '{data.get('hvs27', '')}', " \
             f"'{data.get('hvs28', '')}', '{data.get('hvs29', '')}', '{data.get('hvs30', '')}', '{data.get('hvs31', '')}', '{data.get('hvs32', '')}', '{data.get('hvs33', '')}', '{data.get('hvs34', '')}', '{data.get('hvs35', '')}', '{data.get('hvs36', '')}', '{data.get('hvs37', '')}', '{data.get('hvs38', '')}', '{data.get('hvs46', '')}', '{data.get('hvs47', '')}', '{data.get('hvs48', '')}', " \
             f"'{data.get('hvs49', '')}', '{data.get('hvs50', '')}', '{data.get('hvs51', '')}', '{data.get('hvs52', '')}', '{data.get('hvs53', '')}', '{data.get('hvs54', '')}', '{data.get('hvs55', '')}', '{data.get('hvs56', '')}', '{data.get('hvs57', '')}', '{data.get('hvs58', '')}', '{data.get('hvs59', '')}', '{now}')\n"
-    #print(query)
+    print(query)
+    cursor.execute(query)
 
 
 def update_data_for_rds(**context):
     now = datetime.now()
     now += timedelta(hours=9)
-    conn, cursor = connect_db()
+    conn, cursor = db_connecting.connect_db()
     latest_file = context['ti'].xcom_pull(key='latest_file')
 
     delete_query = "DELETE FROM REAL_TIME_DATA"
