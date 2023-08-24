@@ -4,6 +4,7 @@ import xmltodict
 import requests
 from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
 from plugins.preprocessing.data_counting import DataCounter
+from airflow.providers.mysql.operators.mysql import MySqlOperator
 from datetime import datetime, timedelta
 from time import sleep
 
@@ -29,8 +30,6 @@ def reload_detail_data_to_rds(**kwargs):
 
     conn, cursor = connect_db()
 
-### 태스크 그룹 만들기 
-##### 쓰레드 풀로 수정 필요
     for data in list(retry_hpids):
         hpid = data[0]
         center_type = data[1]
@@ -70,7 +69,7 @@ with DAG(
 ) as dag:
 
     start_task = EmptyOperator(
-        task_id='start_data_extraction'
+        task_id = 'start_extraction'
     )
 
     op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
@@ -147,3 +146,4 @@ start_task >> call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail
 start_task >> call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
 [load_detail_info_Strm, load_detail_info_Egyt] >> count_task_rds
 count_task_rds >> check_task_rds >> [reload_detail_info, end_task_rds]
+reload_detail_info >> end_task_rds
