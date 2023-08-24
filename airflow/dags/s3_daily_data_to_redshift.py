@@ -24,8 +24,7 @@ dag = DAG(
 def get_redshift_connection(autocommit=True):
     hook = PostgresHook(postgres_conn_id='redshift_conn')
     conn = hook.get_conn()
-    conn.autocommit = autocommit
-    return conn.cursor()
+    return conn, conn.cursor()
 
 
 def get_s3_client():
@@ -39,16 +38,27 @@ def get_s3_client():
 
 
 def copy_redshift_table_with_csv(table_name, bucket_name, file_name):
-    cursor = get_redshift_connection()
-    query = f"""
-        COPY {table_name}
-        FROM 's3://{bucket_name}/{file_name}'
-        CREDENTIALS 'aws_access_key_id={Variable.get('aws_secret_access_id')};aws_secret_access_key={Variable.get('aws_secret_access_key')}'
-        FORMAT AS CSV
-        IGNOREHEADER 1;
-    """
-    print(query)
-    cursor.execute(query)
+    conn, cursor = get_redshift_connection()
+
+    try:
+        delete_query = f'delete from {table_name};'
+
+        query = f"""
+            COPY {table_name}
+            FROM 's3://{bucket_name}/{file_name}'
+            CREDENTIALS 'aws_access_key_id={Variable.get('aws_secret_access_id')};aws_secret_access_key={Variable.get('aws_secret_access_key')}'
+            FORMAT AS CSV
+            IGNOREHEADER 1;
+        """
+        cursor.execute(delete_query)
+        cursor.execute(query)
+
+        conn.commit()
+    except Exception as e:
+        print(e)
+        conn.rollback()
+    finally:
+        conn.close()
 
 
 def get_latest_file_from_s3(**context):
