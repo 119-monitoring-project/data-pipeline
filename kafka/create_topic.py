@@ -1,6 +1,10 @@
 from kafka.admin import NewTopic
 from kafka.errors import TopicAlreadyExistsError
 from kafka import KafkaAdminClient
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 def create_topic(bootstrap_servers: tuple, name: str, partition: int = 2, replica: int = 3):
@@ -20,6 +24,6 @@ def create_topic(bootstrap_servers: tuple, name: str, partition: int = 2, replic
 
 
 if __name__ == '__main__':
-    BROKERS = ('localhost:9092', 'localhost:9093', 'localhost:9094')
+    BROKERS = (os.getenv('BROKER1'), os.getenv('BROKER2'), os.getenv('BROKER3'))
     create_topic(BROKERS, 'emergency_data')
 

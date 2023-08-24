@@ -1,6 +1,5 @@
 from kafka.producer import KafkaProducer
 from dotenv import load_dotenv
-from datetime import datetime
 import sys
 import os
 import xmltodict
@@ -49,13 +48,13 @@ def get_producer(bootstrap_servers: tuple):
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         client_id="emergency_producer",
-        acks=1
+        acks=0
     )
     return producer
 
 
 if __name__ == '__main__':
-    BROKERS = ('localhost:9092', 'localhost:9093', 'localhost:9094')
+    BROKERS = (os.getenv('BROKER1'), os.getenv('BROKER2'), os.getenv('BROKER3'))
 
     temp_text = ''
 
@@ -77,6 +76,7 @@ if __name__ == '__main__':
             jsonString = json.dumps(xmltodict.parse(xmlString), indent=4)
             try:
                 json_data = json.loads(jsonString)['response']['body']['items']
+                print(json_data)
                 if json_data is not None:
                     for item in json_data['item']:
                         text += str(item) + '\n'
@@ -93,3 +93,4 @@ if __name__ == '__main__':
         )
 
         producer.flush()
+        print('전송완료')

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BROKERS = ('localhost:9092', 'localhost:9093', 'localhost:9094')
+BROKERS = (os.getenv('BROKER1'), os.getenv('BROKER2'), os.getenv('BROKER3'))
 consumer_group_id = "emergency_consumer"
 host = os.getenv('HOST')
 port = os.getenv('PORT')
@@ -74,7 +74,7 @@ consumer = KafkaConsumer(
     group_id=consumer_group_id,
     value_deserializer=lambda x: x.decode('utf-8'),
     auto_offset_reset='latest',
-    consumer_timeout_ms=30000,
+    consumer_timeout_ms=60000,
     enable_auto_commit=False)
 
 consumer.subscribe('emergency_data')
@@ -84,7 +84,6 @@ latest_file = download_file_from_s3(latest_file_name, 'de-5-1')
 
 
 for record in consumer:
-    # print(f"""{record.topic}: 데이터 {record.value} 를 파티션 {record.partition} 의 {record.offset} 번 오프셋에서 읽어옴""")
     topic_partition = TopicPartition(record.topic, record.partition)
     offset = OffsetAndMetadata(record.offset + 1, record.timestamp)
     consumer.commit({
@@ -93,7 +92,6 @@ for record in consumer:
 
     now = datetime.now()
     if latest_file != record.value:
-        print(now)
         with open(f's3_data/{now}.json', 'w') as file:
             file.write(record.value)
         file.close()
