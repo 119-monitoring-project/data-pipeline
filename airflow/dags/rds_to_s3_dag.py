@@ -16,7 +16,7 @@ def check_data_in_rds(**kwargs):
 
 # DAG 설정
 default_args = {
-    'start_date': datetime(2023, 8, 9, 0, 20, 0),
+    'start_date': datetime(2023, 8, 24, 0, 20, 0),
     'timezone': 'Asia/Seoul',
     'retries': 1,
     'retry_delay': timedelta(minutes=1)

@@ -2,6 +2,8 @@ import requests
 import xmltodict
 from airflow.models import Variable
 from plugins.preprocessing.db_connecting import connect_db
+from concurrent.futures import ThreadPoolExecutor
+import logging
 
 def insert_hpid_info(data, cursor, execution_date):
     hpid = data.get('hpid', '')
@@ -75,14 +77,15 @@ def insert_hpid_info(data, cursor, execution_date):
                 mkioskty1, mkioskty2, mkioskty3, mkioskty4, mkioskty5, mkioskty6, mkioskty7, mkioskty8,
                 mkioskty9, mkioskty10, mkioskty11, dgid_id_name, hpbdn, hpccuyn, hpcuyn, hperyn, hpgryn,
                 hpicuyn, hpnicuyn, hpopyn, dt)
-
+    print(query)
+    
     cursor.execute(query)
 
 class DataLoader:
-    def __init__(self, url, center_type, service_key):
-        self.url = url
-        self.center_type = center_type
-        self.service_key = service_key
+    # def __init__(self, url, center_type, service_key):
+    #     self.url = url
+    #     self.center_type = center_type
+    #     self.service_key = service_key
 
     def call_api(op_orgs, **kwargs):
         url = op_orgs[0]
@@ -141,10 +144,10 @@ class DataLoader:
         
         kwargs['ti'].xcom_push(key='load_hpids', value=hpids)
 
-    def load_detail_data_to_rds(url, **kwargs):
-        execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
-        hpids = kwargs['ti'].xcom_pull(key='load_hpids')  # rds에 적재된 의료기관의 hpid
-
+    def load_detail_data_to_rds(self, hpids, url, execution_date):
+        # rds에 적재된 의료기관의 hpid
+        logging.info(f"쓰레드가 시작되었습니다.")
+        
         servicekey = Variable.get('SERVICEKEY')
         
         conn, cursor = connect_db()
@@ -153,14 +156,59 @@ class DataLoader:
         for hpid in list(hpids):
             params = {'serviceKey': servicekey, 'HPID': hpid, 'pageNo': '1', 'numOfRows': '9999'}
 
-            response = requests.get(url, params=params)
-            xmlString = response.text
-            jsonString = xmltodict.parse(xmlString)
             try:
+                response = requests.get(url, params=params)
+                xmlString = response.text
+                jsonString = xmltodict.parse(xmlString)
                 data = jsonString['response']['body']['items']['item']
                 insert_hpid_info(data, cursor, execution_date)
-            except KeyError:
+            except :
+                logging.info(f"{hpid}가 예외되었습니다.")
                 retry_hpids.append(hpid)
                 continue
 
         conn.commit()  # 1차로 적재 완료된 데이터에 대해 commit 진행
+        logging.info(f"쓰레드가 종료되었습니다.")
+        
+    def concurrent_db_saving(self, url, **kwargs):
+        hpids = kwargs['ti'].xcom_pull(key='load_hpids') 
+        execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
+        
+        workers = 4
+
+        chunk_size = len(hpids) // workers
+        chunks = [hpids[i:i+chunk_size] for i in range(0, len(hpids), chunk_size)]
+
+        chunk_1 = chunks[0]
+        chunk_2 = chunks[1]
+        chunk_3 = chunks[2]
+        chunk_4 = chunks[3]
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            executor.submit(
+                self.load_detail_data_to_rds,
+                chunk_1,
+                url,
+                execution_date
+                )
+            
+            executor.submit(
+                self.load_detail_data_to_rds,
+                chunk_2,
+                url,
+                execution_date
+                )
+            
+            executor.submit(
+                self.load_detail_data_to_rds,
+                chunk_3,
+                url,
+                execution_date
+                )
+            
+            executor.submit(
+                self.load_detail_data_to_rds,
+                chunk_4,
+                url,
+                execution_date
+                )

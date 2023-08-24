@@ -5,6 +5,7 @@ import requests
 from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
 from plugins.preprocessing.data_counting import DataCounter
 from datetime import datetime, timedelta
+from time import sleep
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -41,22 +42,22 @@ def reload_detail_data_to_rds(**kwargs):
 
         params = {'serviceKey': servicekey, 'HPID':hpid, 'pageNo' : '1', 'numOfRows' : '9999'}
 
-        response = requests.get(url, params=params, timeout=100)
-        xmlString = response.text
-        jsonString = xmltodict.parse(xmlString)
         try:
+            response = requests.get(url, params=params, timeout=100)
+            xmlString = response.text
+            jsonString = xmltodict.parse(xmlString)             
             data = jsonString['response']['body']['items']['item']
             insert_hpid_info(data, cursor, execution_date)
         except:
-            # 이 때는 진짜 슬랙 메세지 해야 함 ~
-            print('슬메~')
+            print("slack ! ! !")
+            continue
 
     conn.commit() 
 
 
 # DAG 설정
 default_args = {
-    'start_date': datetime(2023, 8, 9),
+    'start_date': datetime(2023, 8, 24),
     'timezone': 'Asia/Seoul',
     # 'retries': 1,
     # 'retry_delay': timedelta(minutes=5)
@@ -104,17 +105,19 @@ with DAG(
         provide_context=True
     )
 
+    data_loader = DataLoader()
     load_detail_info_Egyt = PythonOperator(
         task_id='load_detail_info_Egyt',
-        python_callable=DataLoader.load_detail_data_to_rds,
-        op_args=[Variable.get('DETAIL_EGYT_URL')],
+        python_callable=DataLoader.concurrent_db_saving,
+        op_args=[data_loader, Variable.get('DETAIL_EGYT_URL')],
         provide_context=True
     )
 
+    data_loader = DataLoader()
     load_detail_info_Strm = PythonOperator(
         task_id='load_detail_info_Strm',
-        python_callable=DataLoader.load_detail_data_to_rds,
-        op_args=[Variable.get('DETAIL_STRM_URL')],
+        python_callable=DataLoader.concurrent_db_saving,
+        op_args=[data_loader, Variable.get('DETAIL_STRM_URL')],
         provide_context=True
     )
     
@@ -126,8 +129,8 @@ with DAG(
 
     check_task_rds = BranchPythonOperator(
         task_id='check_task_rds',
+        python_callable=check_previous_task_result,
         provide_context=True,
-        python_callable=check_previous_task_result
     )
 
     reload_detail_info = PythonOperator(
