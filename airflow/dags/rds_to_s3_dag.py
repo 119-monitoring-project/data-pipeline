@@ -7,6 +7,7 @@ from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
 from airflow.providers.mysql.operators.mysql import MySqlOperator
 from airflow.operators.python import PythonOperator
 from airflow.exceptions import AirflowFailException
+from airflow.sensors.external_task import ExternalTaskSensor
 
 def check_data_in_rds(**kwargs):
     previous_task_result = kwargs['ti'].xcom_pull(key='count_result')
@@ -27,6 +28,18 @@ with DAG(
     default_args=default_args,
     schedule_interval=timedelta(days=1),
 ) as dag:
+    
+    wait_ex_dag_sensor = ExternalTaskSensor(
+    task_id='wait_for_load_to_rds_dag',
+    external_dag_id='api_to_rds_Dag',  
+    external_task_id='finish_data_to_rds',    
+    mode='reschedule', 
+    timeout=3600 
+    )
+    
+    start_task = EmptyOperator(
+        task_id = 'start_load_to_s3'
+    )
 
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
@@ -78,6 +91,8 @@ with DAG(
         autocommit=True
     )
     
-
+    
+    
+wait_ex_dag_sensor >> start_task >> count_task_rds
 count_task_rds >> check_task_rds >> [mysql_to_s3_basic, mysql_to_s3_detail] >> end_task_s3
 end_task_s3 >> [delete_ex_info_basic, delete_ex_info_detail]
