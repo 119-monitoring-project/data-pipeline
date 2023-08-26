@@ -74,7 +74,7 @@ consumer = KafkaConsumer(
     group_id=consumer_group_id,
     value_deserializer=lambda x: x.decode('utf-8'),
     auto_offset_reset='latest',
-    consumer_timeout_ms=60000,
+    consumer_timeout_ms=300000,
     enable_auto_commit=False)
 
 consumer.subscribe('emergency_data')
@@ -104,5 +104,7 @@ for record in consumer:
         print(query)
         cursor.execute(query)
         conn.commit()
+
+        os.remove(f's3_data/{file_name}')
 
 consumer.close()
