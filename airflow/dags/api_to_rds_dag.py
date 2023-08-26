@@ -5,6 +5,7 @@ import requests
 from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
 from plugins.preprocessing.data_counting import DataCounter
 from airflow.providers.mysql.operators.mysql import MySqlOperator
+from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
 from time import sleep
 
@@ -72,53 +73,60 @@ with DAG(
         task_id = 'start_extraction'
     )
 
-    op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
-    call_basic_info_Egyt = PythonOperator(
-        task_id='call_basic_Egyt_data',
-        python_callable=DataLoader.call_api,
-        op_args=[op_orgs],
-        provide_context=True
-    )
+    with TaskGroup(group_id='egyt_data_extraction', dag=dag) as egyt_data_extraction :
 
-    op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
-    call_basic_info_Strm = PythonOperator(
-        task_id='call_basic_Strm_data',
-        python_callable=DataLoader.call_api,
-        op_args=[op_orgs],
-        provide_context=True
-    )
+        op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
+        call_basic_info_Egyt = PythonOperator(
+            task_id='call_basic_Egyt_data',
+            python_callable=DataLoader.call_api,
+            op_args=[op_orgs],
+            provide_context=True
+            )
+        
+        # 기본정보 데이터 적재 태스크 
+        load_basic_data_to_rds_egyt = PythonOperator(
+            task_id='load_basic_info_egyt',
+            python_callable=DataLoader.load_basic_data_to_rds,
+            provide_context=True
+            )
+        
+        data_loader = DataLoader()
+        load_detail_info_Egyt = PythonOperator(
+            task_id='load_detail_info_Egyt',
+            python_callable=DataLoader.concurrent_db_saving,
+            op_args=[data_loader, Variable.get('DETAIL_EGYT_URL')],
+            provide_context=True
+            )
+        
+        call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
+        
+        
+    with TaskGroup(group_id='strm_data_extraction', dag=dag) as strm_data_extraction :
 
-    # 기본정보 데이터 적재 태스크 
-    load_basic_data_to_rds_egyt = PythonOperator(
-        task_id='load_basic_info_egyt',
-        python_callable=DataLoader.load_basic_data_to_rds,
-        op_kwargs={'task_id':'call_basic_Egyt_data'},
-        provide_context=True
-    )
+        op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
+        call_basic_info_Strm = PythonOperator(
+            task_id='call_basic_Strm_data',
+            python_callable=DataLoader.call_api,
+            op_args=[op_orgs],
+            provide_context=True
+        )
 
-    # 기본정보 데이터 적재 태스크 
-    load_basic_data_to_rds_strm = PythonOperator(
-        task_id='load_basic_info_strm',
-        python_callable=DataLoader.load_basic_data_to_rds,
-        op_kwargs={'task_id':'call_basic_Strm_data'},
-        provide_context=True
-    )
+        # 기본정보 데이터 적재 태스크 
+        load_basic_data_to_rds_strm = PythonOperator(
+            task_id='load_basic_info_strm',
+            python_callable=DataLoader.load_basic_data_to_rds,
+            provide_context=True
+        )
 
-    data_loader = DataLoader()
-    load_detail_info_Egyt = PythonOperator(
-        task_id='load_detail_info_Egyt',
-        python_callable=DataLoader.concurrent_db_saving,
-        op_args=[data_loader, Variable.get('DETAIL_EGYT_URL')],
-        provide_context=True
-    )
-
-    data_loader = DataLoader()
-    load_detail_info_Strm = PythonOperator(
-        task_id='load_detail_info_Strm',
-        python_callable=DataLoader.concurrent_db_saving,
-        op_args=[data_loader, Variable.get('DETAIL_STRM_URL')],
-        provide_context=True
-    )
+        data_loader = DataLoader()
+        load_detail_info_Strm = PythonOperator(
+            task_id='load_detail_info_Strm',
+            python_callable=DataLoader.concurrent_db_saving,
+            op_args=[data_loader, Variable.get('DETAIL_STRM_URL')],
+            provide_context=True
+        )
+        
+        call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
     
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
@@ -141,9 +149,8 @@ with DAG(
     end_task_rds = EmptyOperator(
         task_id='finish_data_to_rds'
     )
-    
-start_task >> call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
-start_task >> call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
-[load_detail_info_Strm, load_detail_info_Egyt] >> count_task_rds
+
+
+start_task >> [egyt_data_extraction, strm_data_extraction] >> count_task_rds
 count_task_rds >> check_task_rds >> [reload_detail_info, end_task_rds]
 reload_detail_info >> end_task_rds

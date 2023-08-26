@@ -112,9 +112,9 @@ class DataLoader:
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
 
         conn, cursor = connect_db()
-
-        data = kwargs['ti'].xcom_pull(key=kwargs.get('task_id'))
-
+        
+        upstream_task_id = list(kwargs['ti'].task.upstream_task_ids)[0]
+        data = kwargs['ti'].xcom_pull(key=upstream_task_id)
         # 병뭔 목록 저장
         hpids = []
 

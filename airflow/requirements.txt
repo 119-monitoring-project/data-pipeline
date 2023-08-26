@@ -3,4 +3,3 @@ PyMySQL
 requests
 python-dotenv
 apache-airflow-providers-amazon
-threading
