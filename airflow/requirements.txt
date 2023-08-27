@@ -3,3 +3,4 @@ PyMySQL
 requests
 python-dotenv
 apache-airflow-providers-amazon
+apache-airflow-providers-postgres

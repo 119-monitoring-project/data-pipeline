@@ -1,9 +1,11 @@
 from module.util.connector.rds import ConnectDB
 
+# insert 관련 query
 class InsertQuery:
     def __init__(self):
         self.conn, self.cursor = ConnectDB()
     
+    # basic info query
     def InsertBasicInfoQuery(self, data, execution_date):
         # 병뭔 목록 저장
         hpids = []
@@ -34,6 +36,7 @@ class InsertQuery:
         
         return hpids
     
+    # detail info query
     def InsertDetailInfoQuery(self, data, execution_date):
         hpid = data.get('hpid', '')
         post_cdn1 = data.get('postCdn1', '')

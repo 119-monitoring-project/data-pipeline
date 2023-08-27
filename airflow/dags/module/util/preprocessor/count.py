@@ -1,6 +1,6 @@
 from module.util.connector.rds import ConnectDB 
 
-# basic info 중 detail table에 적재되지 않은 hpids 검색함
+# basic info 중 detail table에 적재되지 않은 hpids 검색
 class CountHpids:
     def __init__(self):
         self.cursor = None

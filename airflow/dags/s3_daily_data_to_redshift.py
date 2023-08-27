@@ -5,7 +5,6 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 
-
 # DAG 설정
 default_args = {
     'start_date': datetime(2023, 8, 9),
@@ -20,12 +19,10 @@ dag = DAG(
     schedule_interval=timedelta(days=1)
 )
 
-
 def get_redshift_connection(autocommit=True):
     hook = PostgresHook(postgres_conn_id='redshift_conn')
     conn = hook.get_conn()
     return conn, conn.cursor()
-
 
 def get_s3_client():
     s3_client = boto3.client('s3',
@@ -35,7 +32,6 @@ def get_s3_client():
                             )
 
     return s3_client
-
 
 def copy_redshift_table_with_csv(table_name, bucket_name, file_name):
     conn, cursor = get_redshift_connection()

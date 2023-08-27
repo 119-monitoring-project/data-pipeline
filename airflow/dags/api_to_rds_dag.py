@@ -1,26 +1,20 @@
 from datetime import datetime, timedelta
-import xmltodict
-import requests
 
-from module.util.preprocessor.data_loading import LoadHpidInfo
+from module.util.preprocessor.load import LoadHpidInfo
 from module.util.preprocessor.count import CountHpids
 from module.util.preprocessor.check import CheckHpids
-from airflow.utils.task_group import TaskGroup
-from datetime import datetime, timedelta
-from time import sleep
+from module.util.preprocessor.thread import SaveConcurrentDB
 
 from airflow import DAG
+from airflow.utils.task_group import TaskGroup
 from airflow.operators.python import PythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.models import Variable
 
-# DAG 설정
 default_args = {
     'start_date': datetime(2023, 8, 24),
-    'timezone': 'Asia/Seoul',
-    # 'retries': 1,
-    # 'retry_delay': timedelta(minutes=5)
+    'timezone': 'Asia/Seoul'
 }
 
 with DAG(
@@ -33,6 +27,7 @@ with DAG(
         task_id = 'start_extraction'
     )
 
+    # egyt data 수집하는 Taskgroup
     with TaskGroup(group_id='egyt_data_extraction', dag=dag) as egyt_data_extraction :
 
         op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
@@ -42,8 +37,7 @@ with DAG(
             op_args=[op_orgs],
             provide_context=True
             )
-        
-        # 기본정보 데이터 적재 태스크 
+
         load_basic_data_to_rds_egyt = PythonOperator(
             task_id='load_basic_info_egyt',
             python_callable=LoadHpidInfo.LoadBasicInfo,
@@ -52,14 +46,14 @@ with DAG(
         
         load_detail_info_Egyt = PythonOperator(
             task_id='load_detail_info_Egyt',
-            python_callable=LoadHpidInfo.SaveConcurrentDB,
-            op_args=[LoadHpidInfo(), Variable.get('DETAIL_EGYT_URL')],
+            python_callable=SaveConcurrentDB,
+            op_args=[Variable.get('DETAIL_EGYT_URL')],
             provide_context=True
             )
         
         call_basic_info_Egyt >> load_basic_data_to_rds_egyt >> load_detail_info_Egyt
         
-        
+    # strm data 수집하는 Taskgroup
     with TaskGroup(group_id='strm_data_extraction', dag=dag) as strm_data_extraction :
 
         op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
@@ -70,7 +64,6 @@ with DAG(
             provide_context=True
         )
 
-        # 기본정보 데이터 적재 태스크 
         load_basic_data_to_rds_strm = PythonOperator(
             task_id='load_basic_info_strm',
             python_callable=LoadHpidInfo.LoadBasicInfo,
@@ -79,8 +72,8 @@ with DAG(
 
         load_detail_info_Strm = PythonOperator(
             task_id='load_detail_info_Strm',
-            python_callable=LoadHpidInfo.SaveConcurrentDB,
-            op_args=[LoadHpidInfo(), Variable.get('DETAIL_STRM_URL')],
+            python_callable=SaveConcurrentDB,
+            op_args=[Variable.get('DETAIL_STRM_URL')],
             provide_context=True
         )
         
