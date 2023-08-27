@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from plugins.preprocessing.data_counting import DataCounter
+from module.util.data_counting import DataCounter
 
 from airflow import DAG
 from airflow.operators.empty import EmptyOperator

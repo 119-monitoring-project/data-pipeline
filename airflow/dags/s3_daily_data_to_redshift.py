@@ -29,10 +29,10 @@ def get_redshift_connection(autocommit=True):
 
 def get_s3_client():
     s3_client = boto3.client('s3',
-                             aws_access_key_id=Variable.get('aws_secret_access_id'),
-                             aws_secret_access_key=Variable.get('aws_secret_access_key'),
-                             region_name=Variable.get('aws_region')
-                             )
+                            aws_access_key_id=Variable.get('aws_secret_access_id'),
+                            aws_secret_access_key=Variable.get('aws_secret_access_key'),
+                            region_name=Variable.get('aws_region')
+                            )
 
     return s3_client
 

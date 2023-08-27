@@ -1,8 +1,7 @@
-from plugins.preprocessing.db_connecting import connect_db
+from module.util.db_connecting import connect_db
 
-# basic info는 존재하나 detail info table에 존재하지 않는 hpids를 계산하는 class
+# basic info 중 detail table에 적재되지 않은 hpids 검색
 class DataCounter:
-
     def __init__(self):
         self.cursor = None
 

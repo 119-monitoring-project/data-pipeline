@@ -1,7 +1,7 @@
 import requests
 import xmltodict
 from airflow.models import Variable
-from plugins.preprocessing.db_connecting import connect_db
+from module.util.db_connecting import connect_db
 from concurrent.futures import ThreadPoolExecutor
 import logging
 

@@ -2,8 +2,8 @@
 from datetime import datetime, timedelta
 import xmltodict
 import requests
-from plugins.preprocessing.data_loading import insert_hpid_info, connect_db, DataLoader
-from plugins.preprocessing.data_counting import DataCounter
+from module.util.data_loading import insert_hpid_info, connect_db, DataLoader
+from module.util.data_counting import DataCounter
 from airflow.providers.mysql.operators.mysql import MySqlOperator
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
