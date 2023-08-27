@@ -1,26 +1,32 @@
-from module.util.db_connecting import connect_db
+from module.util.connector.rds import ConnectDB 
 
-# basic info 중 detail table에 적재되지 않은 hpids 검색
-class DataCounter:
+# basic info 중 detail table에 적재되지 않은 hpids 검색함
+class CountHpids:
     def __init__(self):
         self.cursor = None
 
-    def connect_db(self):
-        _, self.cursor = connect_db()
+    # rds 연결
+    def ConnectDB(self):
+        _, self.cursor = ConnectDB()
 
-    def get_retry_hpids(self):
+    # detail info에 없는 hpids 검색
+    def GetMissingHpids(self):
+        self.ConnectDB()       
+        
         query = '''
             SELECT HOSPITAL_BASIC_INFO.hpid, HOSPITAL_BASIC_INFO.center_type
             FROM HOSPITAL_BASIC_INFO
             LEFT JOIN HOSPITAL_DETAIL_INFO ON HOSPITAL_BASIC_INFO.hpid = HOSPITAL_DETAIL_INFO.hpid
             WHERE HOSPITAL_DETAIL_INFO.hpid IS NULL;
         '''
+        
         self.cursor.execute(query)
-        return self.cursor.fetchall()
+        retry_hpids = self.cursor.fetchall()
+        return retry_hpids
 
-    def count_data_in_rds(self, **kwargs):
-        self.connect_db()
-        retry_hpids = self.get_retry_hpids()
+    # missing hpids가 존재하면 해당 hpids를 return
+    def CountMissingHpids(self, **kwargs):
+        retry_hpids = self.GetMissingHpids()
 
         if not len(retry_hpids) == 0:
             kwargs['ti'].xcom_push(key='count_result', value=False)

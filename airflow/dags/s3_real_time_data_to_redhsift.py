@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 import boto3
-from module.util.db_connecting import connect_db
+from module.util.connector.rds import ConnectDB
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -104,7 +104,7 @@ def insert_data_to_redshift(**context):
 def update_data_for_rds(**context):
     now = datetime.now()
     now += timedelta(hours=9)
-    conn, cursor = connect_db()
+    conn, cursor = ConnectDB()
     latest_file = context['ti'].xcom_pull(key='latest_file')
 
     delete_query = "DELETE FROM REAL_TIME_DATA"
