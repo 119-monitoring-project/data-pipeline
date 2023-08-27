@@ -1,8 +1,6 @@
 airflow/logs/*
 airflow/*.log
-.vscode
-airflow/dags/__pycache__/
-airflow/dags/module/__pycache__/
-airflow/dags/module/util/__pycache__/
+__pycache__/
 airflow_variables.json
+.vscode
 .DS_Store
