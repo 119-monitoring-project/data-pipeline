@@ -4,6 +4,7 @@ from module.util.preprocessor.load import LoadHpidInfo
 from module.util.preprocessor.count import CountHpids
 from module.util.preprocessor.check import CheckHpids
 from module.util.preprocessor.thread import SaveConcurrentDB
+from module.util.notifier.slack import SlackAlert
 
 from airflow import DAG
 from airflow.utils.task_group import TaskGroup
@@ -12,9 +13,12 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.models import Variable
 
+failure_token = Variable.get("SLACK_FAILURE_TOKEN")
+
 default_args = {
     'start_date': datetime(2023, 8, 24),
-    'timezone': 'Asia/Seoul'
+    'timezone': 'Asia/Seoul',
+    'on_failure_callback': SlackAlert(channel='#airflow-practice', token=failure_token).FailAlert
 }
 
 with DAG(
