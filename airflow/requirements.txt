@@ -3,3 +3,7 @@ PyMySQL
 requests
 python-dotenv
 apache-airflow-providers-amazon
+apache-airflow-providers-postgres
+apache-airflow-providers-slack
+apache-airflow-providers-http
+slack_sdk
