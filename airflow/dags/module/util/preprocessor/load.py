@@ -33,17 +33,17 @@ class LoadHpidInfo:
     def LoadBasicInfo(**kwargs):
         execution_date = kwargs['execution_date'].strftime('%Y-%m-%d')
         
+        current_task_id = kwargs['ti'].task_id
         upstream_task_id = list(kwargs['ti'].task.upstream_task_ids)[0]
         data = kwargs['ti'].xcom_pull(key=upstream_task_id)
 
         hpids = InsertQuery().InsertBasicInfoQuery(data, execution_date)
         
-        kwargs['ti'].xcom_push(key='load_hpids', value=hpids)
+        kwargs['ti'].xcom_push(key=current_task_id, value=hpids)
 
     # detail info 적재
-    def LoadDetailInfo(self, hpids, url, execution_date):
+    def LoadDetailInfo(hpids, url, execution_date):
         logging.info(f"쓰레드가 시작되었습니다.")
-        
         servicekey = Variable.get('SERVICEKEY')
 
         retry_hpids = []  # http 오류가 난 API는 재호출 시도
@@ -90,7 +90,6 @@ class LoadHpidInfo:
                 data = jsonString['response']['body']['items']['item']
                 InsertQuery().InsertDetailInfoQuery(data, execution_date)
             except:
-                print("slack ! ! !")
-                continue
+                raise Exception(f"fail hpid: {hpid}")
 
         conn.commit() 
