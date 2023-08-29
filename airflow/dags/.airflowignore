@@ -1,3 +1,1 @@
 data_collector.py
-s3_daily_data_to_redshift.py
-s3_real_time_data_to_redhsift.py

@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
-from module.util.connector import rds, s3
+from module.util.connector.redshfit import ConnectRedshift
+from module.util.connector.s3 import ConnectS3
+
+
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -20,7 +23,7 @@ dag = DAG(
 )
 
 def copy_redshift_table_with_csv(table_name, bucket_name, file_name):
-    conn, cursor = rds.ConnectDB()
+    conn, cursor = ConnectRedshift()
     
     aws_access_key_id = Variable.get('aws_secret_access_id')
     aws_access_key = Variable.get('aws_secret_access_key')
@@ -53,7 +56,7 @@ def get_latest_file_from_s3(**context):
 
     bucket_name = context['params']['bucket_name']
 
-    s3_client = s3.ConnectDB()
+    s3_client = ConnectS3()
 
     obj_list = s3_client.list_objects(Bucket=bucket_name)
     contents_list = obj_list['Contents']
