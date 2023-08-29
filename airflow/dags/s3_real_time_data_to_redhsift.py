@@ -18,7 +18,7 @@ default_args = {
 dag = DAG(
     's3_real_time_data_to_redhsift',
     default_args=default_args,
-    schedule_interval=timedelta(minutes=1)
+    schedule_interval=timedelta(minutes=1),
     catchup=False
 )
 
