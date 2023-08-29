@@ -4,14 +4,12 @@ from module.util.connector.s3 import ConnectS3
 from module.util.connector.rds import ConnectDB
 from module.util.connector.redshfit import ConnectRedshift
 
-
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.models import Variable
 
 # DAG 설정
 default_args = {
-    'start_date': datetime(2023, 8, 9),
+    'start_date': datetime(2023, 8, 28),
     # 'retries': 1,
     'timezone': 'Asia/Seoul',
     'retry_delay': timedelta(minutes=5)

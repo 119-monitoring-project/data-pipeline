@@ -2,15 +2,13 @@ from datetime import datetime, timedelta
 from module.util.connector.redshfit import ConnectRedshift
 from module.util.connector.s3 import ConnectS3
 
-
-
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 
 # DAG 설정
 default_args = {
-    'start_date': datetime(2023, 8, 9),
+    'start_date': datetime(2023, 8, 28),
     # 'retries': 1,
     'timezone': 'Asia/Seoul',
     'retry_delay': timedelta(minutes=5)
@@ -25,8 +23,8 @@ dag = DAG(
 def copy_redshift_table_with_csv(table_name, bucket_name, file_name):
     conn, cursor = ConnectRedshift()
     
-    aws_access_key_id = Variable.get('aws_secret_access_id')
-    aws_access_key = Variable.get('aws_secret_access_key')
+    aws_access_key_id = Variable.get('AWS_ACCESS_ID')
+    aws_secret_access_key = Variable.get('AWS_SECRET_ACCESS_KEY')
 
     try:
         delete_query = f'delete from {table_name};'
@@ -34,7 +32,7 @@ def copy_redshift_table_with_csv(table_name, bucket_name, file_name):
         copy_query = f"""
             COPY {table_name}
             FROM 's3://{bucket_name}/{file_name}'
-            CREDENTIALS 'aws_access_key_id={aws_access_key_id};aws_secret_access_key={aws_access_key}'
+            CREDENTIALS 'aws_access_key_id={aws_access_key_id};aws_secret_access_key={aws_secret_access_key}'
             FORMAT AS CSV
             IGNOREHEADER 1;
         """
