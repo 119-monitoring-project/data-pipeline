@@ -1,4 +1,3 @@
-from airflow.models import Variable
 from slack_sdk import WebClient
 from datetime import datetime
 
@@ -9,11 +8,11 @@ class SlackAlert:
 
     def FailAlert(self, msg):
         text= f'''
+        🔥 Fail 🔥
         date : {datetime.today().strftime("%Y-%m-%d")}
         alert :
-            Fail!
-                dag id : {msg.get('task_instance').dag_id},         
-                task id : {msg.get('task_instance').task_id},
+            dag id : {msg.get('task_instance').dag_id},         
+            task id : {msg.get('task_instance').task_id}
         '''
         self.client.chat_postMessage(channel=self.channel, text=text)
 
