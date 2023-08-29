@@ -74,7 +74,7 @@ consumer = KafkaConsumer(
     group_id=consumer_group_id,
     value_deserializer=lambda x: x.decode('utf-8'),
     auto_offset_reset='latest',
-    consumer_timeout_ms=300000,
+    consumer_timeout_ms=600000,
     enable_auto_commit=False)
 
 consumer.subscribe('emergency_data')
@@ -96,6 +96,11 @@ for record in consumer:
             file.write(record.value)
         file.close()
         file_name = f'{now}' + '.json'
+        file_size = os.path.getsize(f's3_data/{file_name}')
+        if file_size < 285000:
+            print('file_size is too small')
+            continue
+
         upload_file_to_s3(file_name)
 
         latest_file = record.value

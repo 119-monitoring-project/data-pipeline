@@ -48,7 +48,7 @@ def get_producer(bootstrap_servers: tuple):
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         client_id="emergency_producer",
-        acks=0
+        acks=1
     )
     return producer
 

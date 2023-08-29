@@ -1,5 +1,6 @@
 from kafka.producer import KafkaProducer
 from dotenv import load_dotenv
+from datetime import datetime
 import sys
 import os
 import xmltodict
@@ -50,7 +51,7 @@ def get_producer(bootstrap_servers: tuple):
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         client_id="emergency_producer",
-        acks=0
+        acks=1
     )
     return producer
 
@@ -86,21 +87,27 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         while True:
+            send_time = datetime.now()
             tasklist = [asyncio.ensure_future(get_api_data(location, session)) for location in locations]
             results = await asyncio.gather(*tasklist)
             text = ''
+            error_flag = False
             for result in results:
                 if result == 'error':
-                    continue
+                    error_flag = True
+                    break
                 result = result.replace("'", '"')
                 text += result
+            if error_flag:
+                continue
 
             producer.send(
+                key=str(send_time).encode('utf-8'),
                 topic='emergency_data',
                 value=text.encode('utf-8')
             )
 
             producer.flush()
-            print('전송완료')
+            print('전송완료', send_time)
 
 asyncio.run(main())
