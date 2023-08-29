@@ -18,7 +18,7 @@ failure_token = Variable.get("SLACK_FAILURE_TOKEN")
 default_args = {
     'start_date': datetime(2023, 8, 24),
     'timezone': 'Asia/Seoul',
-    'on_failure_callback': SlackAlert(channel='#airflow-practice', token=failure_token).FailAlert
+    'on_failure_callback': SlackAlert(channel='#final_project', token=failure_token).FailAlert
 }
 
 with DAG(
