@@ -48,7 +48,7 @@ def insert_data_to_redshift(**context):
     now = datetime.now()
     now += timedelta(hours=9)
     latest_file = context['ti'].xcom_pull(key='latest_file')
-    cursor = ConnectRedshift()
+    conn, cursor = ConnectRedshift()
 
     query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvs01, hvs02, dt) VALUES" 
     json_list = latest_file.split('\n')
