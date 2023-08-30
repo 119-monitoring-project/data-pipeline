@@ -16,10 +16,8 @@ default_args = {
     'retry_delay': timedelta(minutes=5)
 }
 
+# 오늘 날짜의 s3 file을 download
 def ReadS3file(info_type, **kwargs):
-    
-    current_task_name = kwargs['task_instance'].task_id
-
     s3_client = ConnectS3()
     bucket_name = 'de-5-1'
     file_path = f'batch/year=2023/month=08/day=30/{info_type}_2023-08-30.csv'
@@ -39,14 +37,15 @@ def ReadS3file(info_type, **kwargs):
     else:
         dfresult_bi = dfresult
     
-    kwargs['ti'].xcom_push(key='bi_dataframe', value=dfresult_bi)    
-    kwargs['ti'].xcom_push(key='s3_dataframe', value=dfresult)
-    kwargs['ti'].xcom_push(key='file_path', value=file_path)
+    kwargs['ti'].xcom_push(key=f'bi_dataframe_{info_type}', value=dfresult_bi)    
+    kwargs['ti'].xcom_push(key=f's3_dataframe_{info_type}', value=dfresult)
+    kwargs['ti'].xcom_push(key=f'file_path_{info_type}', value=file_path)
 
+# 전처리 진행한 후 s3에 재적재
 def LoadToS3(**kwargs):
     s3_client = ConnectS3()
-    df = kwargs['ti'].xcom_pull(key='s3_dataframe')
-    path = kwargs['ti'].xcom_pull(key='file_path')
+    df = kwargs['ti'].xcom_pull(key=f's3_dataframe_{info_type}')
+    path = kwargs['ti'].xcom_pull(key=f'file_path_{info_type}')
     print(path)
     
     csv_buffer = io.BytesIO()
@@ -54,9 +53,10 @@ def LoadToS3(**kwargs):
     csv_buffer.seek(0)
     
     s3_client.upload_fileobj(csv_buffer, 'de-5-1', path)
-    
+
+# deatil, basic 포맷에 맞게 redshift에 적재
 def LoadToReshift(info_type, **kwargs):
-    dfresult_bi = kwargs['ti'].xcom_pull(key='bi_dataframe')
+    dfresult_bi = kwargs['ti'].xcom_pull(key=f'bi_dataframe_{info_type}')
     
     engine, conn = ConnectRedshift()
     # DataFrame을 Redshift 테이블로 적재
@@ -78,68 +78,45 @@ with DAG(
         task_id = 'start',
         dag=dag
     )
-
-    with TaskGroup(group_id='load_basic_info', dag=dag) as load_basic_info :
-        
-        info_type = 'basic'
-        
+    
+    info_types = ['basic', 'detail']
+    read_s3_tasks = []
+    load_s3_tasks = []
+    load_redshift_tasks = []
+    
+    for info_type in info_types:
         read_s3_file = PythonOperator(
-            task_id = 'read_s3_file_task',
+            task_id = 'read_s3_file_task_' + info_type,
             python_callable=ReadS3file,
             op_args=[info_type],
             provide_context=True,
             dag=dag
         )
+        read_s3_tasks.append(read_s3_file)
 
         load_new_file_s3 = PythonOperator(
-            task_id = 'load_to_s3_task',
+            task_id = 'load_to_s3_task_' + info_type,
             python_callable=LoadToS3,
             provide_context=True,
             dag=dag
         )
+        load_s3_tasks.append(load_new_file_s3)
 
         load_bi_file_redshift = PythonOperator(
-            task_id = 'load_to_redshift_task',
+            task_id = 'load_to_redshift_task_' + info_type,
             python_callable=LoadToReshift,
             op_args=[info_type],
             provide_context=True,
             dag=dag
         )
-        
-        read_s3_file >> load_new_file_s3 >> load_bi_file_redshift
-
-    with TaskGroup(group_id='load_detail_info', dag=dag) as load_detail_info :
-        
-        info_type = 'detail'
-
-        read_s3_file = PythonOperator(
-            task_id = 'read_s3_file_task',
-            python_callable=ReadS3file,
-            op_args=[info_type],
-            provide_context=True,
-            dag=dag
-        )
-
-        load_new_file_s3 = PythonOperator(
-            task_id = 'load_to_s3_task',
-            python_callable=LoadToS3,
-            provide_context=True,
-            dag=dag
-        )
-
-        load_bi_file_redshift = PythonOperator(
-            task_id = 'load_to_redshift_task',
-            python_callable=LoadToReshift,
-            op_args=[info_type],
-            provide_context=True,
-            dag=dag
-        )
-
-        read_s3_file >> load_new_file_s3 >> load_bi_file_redshift
+        load_redshift_tasks.append(load_bi_file_redshift)
 
     end_task = EmptyOperator(
         task_id = 'end',
         dag=dag
     )
 
-start_task >> [load_basic_info, load_detail_info] >> end_task
+start_task >> read_s3_tasks
+for i in range(len(info_types)):
+    read_s3_tasks[i] >> load_s3_tasks[i] >> load_redshift_tasks[i]
+load_redshift_tasks >> end_task
