@@ -22,8 +22,7 @@ dag = DAG(
 )
 
 
-def get_latest_file_from_s3(**context):
-    bucket_name = context['params']['bucket_name']
+def find_latest_file(bucket_name, prefix):
 
     s3_client = ConnectS3()
 
@@ -31,11 +30,34 @@ def get_latest_file_from_s3(**context):
 
     response_iterator = paginator.paginate(
         Bucket=bucket_name,
-        Prefix='real_time_data'
+        Prefix=prefix
     )
 
     for page in response_iterator:
-        key_list = [x['Key'] for x in page['Contents']]
+        if page['Contents']:
+            key_list = [x['Key'] for x in page['Contents']]
+        else:
+            return None
+
+    return key_list
+
+
+def get_latest_file_from_s3(**context):
+    bucket_name = context['params']['bucket_name']
+
+    now = datetime.now()
+    now += timedelta(hours=9)
+    year, month, day = str(now.year), str(now.month).zfill(2), str(now.day).zfill(2)
+
+    prefix = f'real_time_data/year={year}/month={month}/day={day}'
+
+    key_list = find_latest_file(bucket_name, prefix)
+
+    if not key_list:
+        now -= timedelta(day=1)
+        year, month, day = str(now.year), str(now.month).zfill(2), str(now.day).zfill(2)
+        prefix = f'real_time_data/year={year}/month={month}/day={day}'
+        key_list = find_latest_file(bucket_name, prefix)
 
     context['ti'].xcom_push(key='latest_file_name', value=sorted(key_list)[-1])
 
@@ -103,6 +125,7 @@ def update_data_for_rds(**context):
             "hvs28, hvs29, hvs30, hvs31, hvs32, hvs33, hvs34, hvs35, hvs36, hvs37, hvs38, hvs46, hvs47, hvs48, " \
             "hvs49, hvs50, hvs51, hvs52, hvs53, hvs54, hvs55, hvs56, hvs57, hvs58, hvs59, dt)\n" \
             "VALUES "
+
     json_list = latest_file.split('\n')
 
     for i, json_data in enumerate(json_list):
