@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 from module.util.connector.s3 import ConnectS3
 from module.util.connector.rds import ConnectDB
-from module.util.connector.redshfit import ConnectRedshift
+from module.util.connector.redshift import ConnectRedshift
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator

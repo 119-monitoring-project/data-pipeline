@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from module.util.connector.redshfit import ConnectRedshift
+from module.util.connector.redshift import ConnectRedshift
 from module.util.connector.s3 import ConnectS3
 
 from airflow import DAG
