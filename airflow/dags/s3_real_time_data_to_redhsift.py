@@ -21,15 +21,22 @@ dag = DAG(
     schedule_interval=timedelta(days=1)
 )
 
+
 def get_latest_file_from_s3(**context):
     bucket_name = context['params']['bucket_name']
 
     s3_client = ConnectS3()
 
-    obj_list = s3_client.list_objects(Bucket=bucket_name)
-    contents_list = obj_list['Contents']
+    paginator = s3_client.get_paginator('list_objects_v2')
 
-    key_list = [x['Key'] for x in contents_list if 'real_time_data' in x['Key']]
+    response_iterator = paginator.paginate(
+        Bucket=bucket_name,
+        Prefix='real_time_data'
+    )
+
+    for page in response_iterator:
+        key_list = [x['Key'] for x in page['Contents']]
+
     context['ti'].xcom_push(key='latest_file_name', value=sorted(key_list)[-1])
 
 
@@ -44,13 +51,14 @@ def download_file_from_s3(**context):
     latest_file = obj["Body"].read().decode('utf-8')
     context['ti'].xcom_push(key='latest_file', value=latest_file)
 
+
 def insert_data_to_redshift(**context):
     now = datetime.now()
     now += timedelta(hours=9)
     latest_file = context['ti'].xcom_pull(key='latest_file')
-    cursor = ConnectRedshift()
+    conn, cursor = ConnectRedshift()
 
-    query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvs01, hvs02, dt) VALUES" 
+    query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvs01, hvs02, dt) VALUES"
     json_list = latest_file.split('\n')
 
     for i, json_data in enumerate(json_list):
