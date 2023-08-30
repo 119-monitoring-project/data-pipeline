@@ -7,18 +7,11 @@ import io
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.empty import EmptyOperator
-from airflow.utils.task_group import TaskGroup
-
-# DAG 설정
-default_args = {
-    'start_date': datetime(2023, 8, 28),
-    'timezone': 'Asia/Seoul',
-    'retry_delay': timedelta(minutes=5)
-}
 
 # 오늘 날짜의 s3 file을 download
 def ReadS3file(info_type, **kwargs):
     s3_client = ConnectS3()
+    
     bucket_name = 'de-5-1'
     file_path = f'batch/year=2023/month=08/day=30/{info_type}_2023-08-30.csv'
     csv_temp_file = 'temp_s3_file.csv'
@@ -48,6 +41,7 @@ def LoadToS3(**kwargs):
     path = kwargs['ti'].xcom_pull(key=f'file_path_{info_type}')
     print(path)
     
+    # .csv을 이용하지 않기 위함
     csv_buffer = io.BytesIO()
     df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
@@ -67,6 +61,13 @@ def LoadToReshift(info_type, **kwargs):
     dfresult_bi.to_sql(name=table_name, con=engine, schema=schema_name, if_exists='replace', index=False)
 
     conn.close()
+
+# Dag default 설정
+default_args = {
+    'start_date': datetime(2023, 8, 28),
+    'timezone': 'Asia/Seoul',
+    'retry_delay': timedelta(minutes=5)
+}
 
 with DAG(
     's3_daily_data_to_redshift',
