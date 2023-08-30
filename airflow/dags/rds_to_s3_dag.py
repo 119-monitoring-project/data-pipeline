@@ -46,22 +46,27 @@ with DAG(
         python_callable=CheckHpids.CheckLoadingHpids,
         provide_context=True
     )
+    
+    basic_path = 'batch/year={{ execution_date.strftime("%Y") }}/month={{ execution_date.strftime("%m") }}/day={{ execution_date.strftime("%d") }}/basic_{{ execution_date.strftime("%Y-%m-%d") }}.csv'
+
 
     mysql_to_s3_basic = SqlToS3Operator(
         task_id='rds_to_s3_basic',
         query='SELECT * FROM HOSPITAL_BASIC_INFO WHERE dt = CURRENT_DATE',
         s3_bucket='de-5-1',
-        s3_key='test/{{ ds_nodash }}/basic_info_{{ ds_nodash }}.csv',
+        s3_key=basic_path,
         sql_conn_id='rds_conn_id',
         aws_conn_id='aws_conn_id',
         replace=True
     )
 
+    detail_path = 'batch/year={{ execution_date.strftime("%Y") }}/month={{ execution_date.strftime("%m") }}/day={{ execution_date.strftime("%d") }}/detail_{{ execution_date.strftime("%Y-%m-%d") }}.csv'
+
     mysql_to_s3_detail = SqlToS3Operator(
         task_id='rds_to_s3_detail',
         query='SELECT * FROM HOSPITAL_DETAIL_INFO WHERE dt = CURRENT_DATE',
         s3_bucket='de-5-1',
-        s3_key='test/{{ ds_nodash }}/detail_info_{{ ds_nodash }}.csv',
+        s3_key=detail_path,
         sql_conn_id='rds_conn_id',
         aws_conn_id='aws_conn_id',
         replace=True
