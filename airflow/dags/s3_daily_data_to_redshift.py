@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from module.util.connector.redshfit import ConnectRedshift
+from module.util.connector.redshift import ConnectRedshift
 from module.util.connector.s3 import ConnectS3
 import pandas as pd
 import io
@@ -58,7 +58,7 @@ def LoadToS3(**kwargs):
 def LoadToReshift(info_type, **kwargs):
     dfresult_bi = kwargs['ti'].xcom_pull(key=f'bi_dataframe_{info_type}')
     
-    engine, conn = ConnectRedshift()
+    engine, conn = ConnectRedshift.ConnectRedshift_engine()
     # DataFrame을 Redshift 테이블로 적재
     table_name = f'hospital_{info_type}_info'
     schema_name = 'public'
