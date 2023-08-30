@@ -7,3 +7,4 @@ apache-airflow-providers-postgres
 apache-airflow-providers-slack
 apache-airflow-providers-http
 slack_sdk
+sqlalchemy
