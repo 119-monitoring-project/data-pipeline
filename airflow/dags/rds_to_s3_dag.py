@@ -28,6 +28,7 @@ with DAG(
     schedule_interval=timedelta(days=1)
 ) as dag:
     
+    # 이전 dag가 성공적으로 종료되는지 확인하는 센서
     wait_ex_dag_sensor = ExternalTaskSensor(
     task_id='wait_for_load_to_rds_dag',
     external_dag_id='api_to_rds_Dag',  
@@ -40,12 +41,14 @@ with DAG(
         task_id = 'start_load_to_s3'
     )
 
+    # basic info와 detail info 겟수 일치하는지 확인
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
         python_callable=CountHpids().CountMissingHpids,
         provide_context=True
     )
     
+    # 갯수가 다를 경우 rds에 적재
     check_task_rds = PythonOperator(
         task_id='check_data_in_rds',
         python_callable=CheckHpids.CheckLoadingHpids,
