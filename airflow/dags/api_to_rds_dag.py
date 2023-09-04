@@ -13,12 +13,13 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import BranchPythonOperator
 from airflow.models import Variable
 
+# slack token
 failure_token = Variable.get("SLACK_FAILURE_TOKEN")
 
 default_args = {
     'start_date': datetime(2023, 8, 24),
     'timezone': 'Asia/Seoul',
-    'on_failure_callback': SlackAlert(channel='#final_project', token=failure_token).FailAlert
+    'on_failure_callback': SlackAlert(channel='#airflow-practice', token=failure_token).FailAlert
 }
 
 with DAG(
@@ -33,8 +34,8 @@ with DAG(
 
     # egyt data 수집하는 Taskgroup
     with TaskGroup(group_id='egyt_data_extraction', dag=dag) as egyt_data_extraction :
-
         op_orgs = [Variable.get('BASIC_EGYT_URL'), 0] # 응급의료기관은 center_type == 0
+        # 응급의료기관에 대한 basic info API 호출
         call_basic_info_Egyt = PythonOperator(
             task_id='call_basic_Egyt_data',
             python_callable=LoadHpidInfo.CallAPI,
@@ -42,12 +43,14 @@ with DAG(
             provide_context=True
             )
 
+        # 해당 basic info를 rds에 적재
         load_basic_data_to_rds_egyt = PythonOperator(
             task_id='load_basic_info_egyt',
             python_callable=LoadHpidInfo.LoadBasicInfo,
             provide_context=True
             )
         
+        # basic info가 존재하는 응급의료기관에 대해 detail info를 rds에 적재
         load_detail_info_Egyt = PythonOperator(
             task_id='load_detail_info_Egyt',
             python_callable=SaveConcurrentDB,
@@ -59,8 +62,8 @@ with DAG(
         
     # strm data 수집하는 Taskgroup
     with TaskGroup(group_id='strm_data_extraction', dag=dag) as strm_data_extraction :
-
         op_orgs = [Variable.get('BASIC_STRM_URL'), 1] # 응급의료기관은 center_type == 1
+        # 외상센터에 대한 basic info API 호출
         call_basic_info_Strm = PythonOperator(
             task_id='call_basic_Strm_data',
             python_callable=LoadHpidInfo.CallAPI,
@@ -68,12 +71,14 @@ with DAG(
             provide_context=True
         )
 
+        # 해당 basic info를 rds에 적재
         load_basic_data_to_rds_strm = PythonOperator(
             task_id='load_basic_info_strm',
             python_callable=LoadHpidInfo.LoadBasicInfo,
             provide_context=True
         )
 
+        # basic info가 존재하는 외상센터에 대해 detail info를 rds에 적재
         load_detail_info_Strm = PythonOperator(
             task_id='load_detail_info_Strm',
             python_callable=SaveConcurrentDB,
@@ -83,18 +88,21 @@ with DAG(
         
         call_basic_info_Strm >> load_basic_data_to_rds_strm >> load_detail_info_Strm
     
+    # rds에 적재된 detail info를 count
     count_task_rds = PythonOperator(
         task_id='count_data_in_rds',
         python_callable=CountHpids().CountMissingHpids,
         provide_context=True
     )
 
+    # basic info와 detail info 겟수 일치하는지 확인
     check_task_rds = BranchPythonOperator(
-        task_id='check_task_rds',
+        task_id='check_data_in_rds',
         python_callable=CheckHpids.CheckMissingHpids,
         provide_context=True
     )
 
+    # 갯수가 다를 경우 rds에 적재
     reload_detail_info = PythonOperator(
         task_id='reload_detail_data_to_rds',
         python_callable=LoadHpidInfo.ReloadDetailInfo,

@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 from module.util.connector.s3 import ConnectS3
 from module.util.connector.rds import ConnectDB
-from module.util.connector.redshfit import ConnectRedshift
+from module.util.connector.redshift import ConnectRedshift
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -21,15 +21,44 @@ dag = DAG(
     schedule_interval=timedelta(days=1)
 )
 
-def get_latest_file_from_s3(**context):
-    bucket_name = context['params']['bucket_name']
+
+def find_latest_file(bucket_name, prefix):
 
     s3_client = ConnectS3()
 
-    obj_list = s3_client.list_objects(Bucket=bucket_name)
-    contents_list = obj_list['Contents']
+    paginator = s3_client.get_paginator('list_objects_v2')
 
-    key_list = [x['Key'] for x in contents_list if 'real_time_data' in x['Key']]
+    response_iterator = paginator.paginate(
+        Bucket=bucket_name,
+        Prefix=prefix
+    )
+
+    for page in response_iterator:
+        if page['Contents']:
+            key_list = [x['Key'] for x in page['Contents']]
+        else:
+            return None
+
+    return key_list
+
+
+def get_latest_file_from_s3(**context):
+    bucket_name = context['params']['bucket_name']
+
+    now = datetime.now()
+    now += timedelta(hours=9)
+    year, month, day = str(now.year), str(now.month).zfill(2), str(now.day).zfill(2)
+
+    prefix = f'real_time_data/year={year}/month={month}/day={day}'
+
+    key_list = find_latest_file(bucket_name, prefix)
+
+    if not key_list:
+        now -= timedelta(day=1)
+        year, month, day = str(now.year), str(now.month).zfill(2), str(now.day).zfill(2)
+        prefix = f'real_time_data/year={year}/month={month}/day={day}'
+        key_list = find_latest_file(bucket_name, prefix)
+
     context['ti'].xcom_push(key='latest_file_name', value=sorted(key_list)[-1])
 
 
@@ -44,13 +73,14 @@ def download_file_from_s3(**context):
     latest_file = obj["Body"].read().decode('utf-8')
     context['ti'].xcom_push(key='latest_file', value=latest_file)
 
+
 def insert_data_to_redshift(**context):
     now = datetime.now()
     now += timedelta(hours=9)
     latest_file = context['ti'].xcom_pull(key='latest_file')
-    cursor = ConnectRedshift()
+    conn, cursor = ConnectRedshift.ConnectRedshift_hook()
 
-    query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvs01, hvs02, dt) VALUES" 
+    query = "INSERT INTO REAL_TIME_DATA (hpid, phpid, hvidate, hvec, hvs01, hvs02, dt) VALUES"
     json_list = latest_file.split('\n')
 
     for i, json_data in enumerate(json_list):
@@ -95,6 +125,7 @@ def update_data_for_rds(**context):
             "hvs28, hvs29, hvs30, hvs31, hvs32, hvs33, hvs34, hvs35, hvs36, hvs37, hvs38, hvs46, hvs47, hvs48, " \
             "hvs49, hvs50, hvs51, hvs52, hvs53, hvs54, hvs55, hvs56, hvs57, hvs58, hvs59, dt)\n" \
             "VALUES "
+
     json_list = latest_file.split('\n')
 
     for i, json_data in enumerate(json_list):
