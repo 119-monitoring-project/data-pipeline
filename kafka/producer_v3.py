@@ -24,6 +24,7 @@ slack_token = os.getenv('SLACK_TOKEN')
 
 
 def exit_send_slack_message():
+    """프로그램 종료 시 슬랙 매시지 전송"""
     slack_module = slack.SlackAlert('airflow-practice', slack_token)
     slack_module.FailAlert('producer_v3.py')
 
@@ -58,6 +59,7 @@ def deep_getsizeof(obj, seen=None) -> int:
 
 
 def get_producer(bootstrap_servers: tuple):
+    """producer 생성하여 리턴"""
     producer = KafkaProducer(
         bootstrap_servers=bootstrap_servers,
         client_id="emergency_producer",
@@ -67,6 +69,7 @@ def get_producer(bootstrap_servers: tuple):
 
 
 async def get_api_data(location, session):
+    """비동기로 실시간 응급실 병상정보 API 호출하여 반환하는 함수"""
     params = {'serviceKey': api_key, 'pageNo': '1', 'numOfRows': '100', 'STAGE1': location}
     text = ''
     try:
@@ -95,6 +98,7 @@ async def main():
     locations = cursor.fetchall()
     producer = get_producer(broker)
 
+    # 비동기 HTTP 통신 세션 생성
     async with aiohttp.ClientSession() as session:
         while True:
             send_time = datetime.now()
@@ -103,6 +107,8 @@ async def main():
             results = await asyncio.gather(*tasklist)
             text = ''
             error_flag = False
+
+            # 에러 발생시 전송 호출을 종료하고 처음부터 재시도
             for result in results:
                 if result == 'error':
                     error_flag = True
@@ -112,6 +118,7 @@ async def main():
             if error_flag:
                 continue
 
+            # 토픽으로 데이터 전송
             producer.send(
                 key=str(send_time).encode('utf-8'),
                 topic='emergency_data',

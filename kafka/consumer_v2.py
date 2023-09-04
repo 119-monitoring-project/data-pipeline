@@ -24,6 +24,7 @@ slack_token = os.getenv('SLACK_TOKEN')
 
 
 def exit_send_slack_message():
+    """프로그램 종료 시 슬랙 매시지 전송"""
     slack_module = slack.SlackAlert('airflow-practice', slack_token)
     slack_module.FailAlert('consumer_v2.py')
 
@@ -40,6 +41,7 @@ except Exception as e:
 
 
 def get_s3_client():
+    """boto client 생성하여 리턴"""
     s3_client = boto3.client('s3',
                              aws_access_key_id=ACCESS_ID,
                              aws_secret_access_key=ACCESS_KEY,
@@ -50,6 +52,7 @@ def get_s3_client():
 
 
 def upload_file_to_s3(file_name, object_name=None):
+    """s3 에 데이터 업로드하는 함수"""
     year, month, day = file_name.split()[0].split('-')
 
     new_file_name = f'real_time_data/year={year}/month={month}/day={day}/stream_{file_name[:-8]}.json'
@@ -63,6 +66,7 @@ def upload_file_to_s3(file_name, object_name=None):
 
 
 def get_latest_file_name_from_s3(bucket_name):
+    """s3 에서 가장 최근 파일명을 리턴하는 함수"""
     s3_client = get_s3_client()
 
     obj_list = s3_client.list_objects(Bucket=bucket_name)
@@ -73,6 +77,7 @@ def get_latest_file_name_from_s3(bucket_name):
 
 
 def download_file_from_s3(file_name, bucket_name):
+    """s3 에서 데이터를 받아 읽어오는 함수"""
     s3_client = get_s3_client()
     obj = s3_client.get_object(
         Bucket=bucket_name,
@@ -83,7 +88,7 @@ def download_file_from_s3(file_name, bucket_name):
 
     return latest_file
 
-
+# 컨슈머 생성
 consumer = KafkaConsumer(
     bootstrap_servers=BROKERS,
     group_id=consumer_group_id,
@@ -107,12 +112,14 @@ for record in consumer:
 
     now = datetime.now()
     now += timedelta(hours=9)
+    # 최신 파일과 다를 경우에만 전송
     if latest_file != record.value:
         with open(f's3_data/{now}.json', 'w') as file:
             file.write(record.value)
         file.close()
         file_name = f'{now}' + '.json'
         file_size = os.path.getsize(f's3_data/{file_name}')
+        # 전송받은 파일 사이즈가 작으면 s3 에 전송하지 않음
         if file_size < 285000:
             print('file_size is too small')
             continue
@@ -126,6 +133,7 @@ for record in consumer:
         cursor.execute(query)
         conn.commit()
 
+        # 용량 관리 문제로 업로드된 파일 삭제
         os.remove(f's3_data/{file_name}')
 
 consumer.close()
